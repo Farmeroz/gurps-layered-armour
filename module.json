@@ -2,15 +2,33 @@
   "id": "gurps-layered-armour",
   "title": "GURPS Layered Armour",
   "description": "A standalone actor Armour Layers editor with persistent, location-specific DR and per-layer Hardened support in GGA's Apply Damage Dialog.",
-  "version": "0.1.2",
-  "authors": [{"name": "Phil Brown", "url": "https://github.com/Farmeroz"}],
-  "compatibility": {"minimum": "14"},
-  "relationships": {"systems": [{"id": "gurps", "type": "system", "compatibility": {"minimum": "0.18.0", "verified": "0.18.23"}}]},
+  "version": "0.1.3",
+  "authors": [
+    {
+      "name": "Phil Brown",
+      "url": "https://github.com/Farmeroz"
+    }
+  ],
+  "compatibility": {
+    "minimum": "14"
+  },
+  "relationships": {
+    "systems": [
+      {
+        "id": "gurps",
+        "type": "system",
+        "compatibility": {
+          "minimum": "0.18.0",
+          "verified": "0.18.23"
+        }
+      }
+    ]
+  },
   "esmodules": ["scripts/main.mjs"],
   "styles": ["styles/armour.css"],
   "url": "https://github.com/Farmeroz/gurps-layered-armour",
   "manifest": "https://github.com/Farmeroz/gurps-layered-armour/releases/latest/download/module.json",
-  "download": "https://github.com/Farmeroz/gurps-layered-armour/releases/download/v0.1.2/gurps-layered-armour-v0.1.2.zip",
+  "download": "https://github.com/Farmeroz/gurps-layered-armour/releases/download/v0.1.3/gurps-layered-armour-v0.1.3.zip",
   "readme": "README.md",
   "license": "LICENSE"
 }

@@ -1,0 +1,14 @@
+[
+  "LICENSE",
+  "README.md",
+  "module.json",
+  "scripts/core.mjs",
+  "scripts/editor.mjs",
+  "scripts/integration.mjs",
+  "scripts/log.mjs",
+  "scripts/main.mjs",
+  "scripts/menus.mjs",
+  "scripts/transfer.mjs",
+  "styles/armour.css",
+  "templates/editor.hbs"
+]
