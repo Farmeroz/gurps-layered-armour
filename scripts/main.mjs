@@ -3,6 +3,7 @@ import { ID, canEdit, readProfile } from './core.mjs';
 import { createEditorClass } from './editor.mjs';
 import { patchADD } from './integration.mjs';
 import { registerMenus } from './menus.mjs';
+import { registerHelpSetting } from './help.mjs';
 
 let Editor;
 const editors = new Map();
@@ -74,12 +75,19 @@ export async function command(line) {
   await openEditor(actors[0]);
   return true;
 }
+Hooks.once('init', () => registerHelpSetting());
+
 Hooks.once('ready', async () => {
   if (game.system.id !== 'gurps') return;
   const Base = globalThis.foundry?.appv1?.api?.Application ?? globalThis.Application;
   Editor = createEditorClass(Base);
   game.modules.get(ID).api = Object.freeze({ open, command, getProfile: readProfile });
   registerMenus(open);
+  Hooks.on('closeApplication', (app) => {
+    app._armourHideHelp?.();
+    app._armourHudHideHelp?.();
+    app.hideHelp?.();
+  });
   const registry = globalThis.GURPS?.ChatProcessors;
   if (registry?.registerProcessor) {
     const existing = [...registry.processorsForAll(), ...registry.processorsForGMOnly()];

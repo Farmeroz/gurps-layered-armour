@@ -1,36 +1,38 @@
-# GURPS Layered Armour 0.1.3
+# GURPS Layered Armour 0.2.0
 
 A separate Foundry VTT module with a player-facing **Armour Layers** window. It saves ordered armour on an actor and supplies layered DR to GGA's normal Apply Damage Dialog (ADD), including the ADD opened by GURPS Manual Damage.
 
-Target: **Foundry VTT 14 and GURPS Game Aid (GGA) 0.18.x**. Tested in live Foundry worlds with GGA 0.18.23 and Manual Damage 0.1.1.
+For **Foundry VTT 14 and GURPS Game Aid (GGA) 0.18.x**. Manual Damage is optional.
+
+## Armour sets and equipment
+
+Keep named sets such as **Everyday** and **Combat** on each actor. Existing armour appears as **Default**. Choose a set to edit, rename it, or use **New set** or **Duplicate**. Switching the editing selection retains draft changes. Choose **Make active**, then **Save sets to actor** to select the set used by the ADD. Cancel discards edits to all sets.
+
+Selecting a set changes ADD protection only. It does not equip inventory items or change weight, DX or encumbrance. Each set has its own layer order, coverage and values. The active set is identified above the layers; selecting another set for editing does not activate it.
+
+1. Expand **Add from actor equipment**. Search names and notes, and filter by **Likely armour**, **Equipped**, **Carried** or **All equipment**. The list includes container contents and available equipment items on this actor or unlinked token.
+2. Tick the items to use and choose **Add selected as layers**. Each item becomes one layer; quantity does not multiply DR. Use **All equipment** if an armour item is not recognised by the suggested filter.
+3. Review each layer's DR, coverage, Hardened level and flexible/rigid status. Reliable item values and complete GGA DR bonus lines are filled in where available. Unknown DR stays blank. Slash values such as `6/2` are not interpreted as separate layers.
+4. Enter missing values, arrange the outermost layer first, then tick **I have reviewed this layer's armour values**. An enabled layer marked **Needs review** blocks calculated injury until reviewed or disabled.
+5. Enable layered protection for the set, make it active if needed, and save.
+
+The module does not derive individual armour from the actor's combined sheet DR. Include innate protection and other sources manually where needed. **Configured coverage replaces the sheet's total DR at that location.**
+
+An equipment-derived layer retains its source link. Reopening the editor or using **Refresh equipment list** shows whether that item has changed. **Refresh from equipment** explicitly reloads its detected values into the draft and marks the layer for review again. If the source is missing, saved armour values remain available. Equipment changes never silently overwrite your layer edits.
+
+## Help tooltips
+
+Hover over a control or focus it with the keyboard for a short explanation. Press Escape to dismiss it. Help is enabled by default; turn off **Show help tooltips** under **Configure Settings → Module Settings → GURPS Layered Armour** to disable it on your client. This does not change other players' preference or remove labels.
 
 ## Export and import
 
-Armour setups can now be shared between actors and game worlds as portable JSON files. Install this module version (or a compatible newer version) in the destination world.
+Expand **Export / import setup** and choose **Export JSON** to download the displayed set, including unsaved edits. Exporting does not save the actor. The file preserves armour values, layer order, coverage and review state, but omits actor-specific equipment links.
 
-1. Open the source actor's **Armour Layers** window and expand **Export / import setup**.
-2. Click **Export JSON**. Your browser downloads an `actor-name-armour-layers.json` file containing the current editor values, including unsaved changes. Exporting does not save or change the actor.
-3. Open the destination actor's Armour Layers window, expand **Export / import setup**, and choose that JSON file.
-4. Click **Import into editor**. This replaces the complete setup currently shown in that editor, including unsaved edits; it does not append layers. The destination actor's saved armour stays unchanged.
-5. Review the imported layers and coverage, then **Save to actor**. Cancel instead to leave the actor's saved setup unchanged. Export any unsaved setup you want to keep before loading a different one.
+On the destination actor, select or create a set, choose the JSON file, then **Import into editor**. Import replaces only the displayed set. Review the layers and coverage, choose **Make active** if appropriate, then **Save sets to actor**. Cancel leaves the actor unchanged.
 
-The file includes layer order, names, kinds, active state, profile enablement, DR, Hardened levels, flexible/rigid status, damage-type values, coverage, and per-location overrides. It contains no actor/world IDs, permissions, HP, equipment records, or other character data. Sharing the file does share the armour names and values it contains.
+Location names must match the destination actor exactly. Unmatched locations are retained and flagged. Select the correct destination locations, copy any overrides and untick unmatched rows. **Covers every location** applies to the destination actor's whole body plan.
 
-Location names must match the destination actor exactly. Unmatched names are flagged and retained in the Coverage tables so no values are silently discarded or guessed. Tick the appropriate destination rows, copy any per-location overrides across, and untick the unmatched rows. **Covers every location** applies to the destination actor's entire body plan, which may differ from the source. Locations without configured coverage still use the destination actor's normal sheet DR.
-
-Export/import also works in the temporary **Adjust for this ADD only** editor. Its final **Use for this ADD** action changes that ADD's temporary stack, not the actor's saved profile. Unlinked tokens retain the existing separate-actor behaviour.
-
-Files are validated before replacing the editor contents. Malformed JSON, unrelated exports, unsupported versions, invalid armour values, and files over 16 MiB are rejected. Importing never changes ownership or bypasses the existing save/conflict checks. The transfer format is version 1; existing actor profile schema 1 is unchanged, so no migration is needed.
-
-To update the module, overwrite the existing module folder with this ZIP and reload Foundry.
-
-## GUI fixes in 0.1.1
-
-The editor now uses a consistent light surface and matching button/input colours, preventing the dark footer and unreadable button labels caused by mixed Foundry AppV1/global theme colours. Footer actions can wrap when the window is narrowed.
-
-Coverage summaries update immediately when locations are ticked or **Covers every location** is changed. In that mode the table column is labelled **Override**: every location is covered already, and ticks enable only the location-specific overrides. Unticked rows have inactive DR inputs, keeping the displayed controls consistent with what is saved. Changes update in place without discarding unsaved fields or collapsing the coverage section.
-
-To update, overwrite the existing module folder with this ZIP and reload Foundry. Existing actor profiles use the same schema and need no migration.
+Export/import also works in **Adjust for this ADD only**. **Use for this ADD** changes that dialog's temporary protection without saving actor sets. Earlier JSON exports are accepted. New exports require module 0.2.0 or later; malformed files and files over 16 MiB are rejected.
 
 ## Install or update
 
@@ -72,7 +74,7 @@ The command registers with GGA's chat processor, so GGA chat macros and OtF comm
 2. Expand **Coverage** and select its hit locations. New layers initially cover Torso, or the first actor location if Torso is unavailable.
 3. Optionally give individual locations their own DR and damage-type values. **Covers every location** applies the default everywhere; selected rows can still override it.
 4. Use the up/down arrows to put the outermost layer first. Add natural DR and force fields as their own layers where applicable. Force-field layers are treated as non-flexible.
-5. Select **Use this armour profile in the ADD** and **Save to actor**.
+5. Select **Enable layered protection for this set**, choose **Make active** if needed, then **Save sets to actor**.
 
 **Configured coverage replaces the sheet's total DR at that location.** Include all protection there, including innate DR, skull protection where applicable, padding not already included in an armour entry, and other sources. Imported total DR is not added on top. Locations with no configured coverage retain GGA's normal sheet DR.
 
@@ -86,7 +88,7 @@ cr=2; cut=4; pi=6; pi+=6; pi++=6
 
 List each piercing size separately. Zero is valid. An unspecified type uses that layer's default DR. A location-specific type entry takes precedence over the layer's type entry; otherwise the layer's type entry remains in effect. An ordinary location DR override changes the default for types without an explicit type entry.
 
-The editor shows imported DR as a reference, including slash strings and structured damage-type values. It does **not** guess layers from `x/y/z`. Slash values in GURPS can represent protection by damage type or location (Basic Set, p. 282). This release uses manually entered layer records rather than automatic equipment reconstruction.
+The editor shows imported DR as a reference, including slash strings and structured damage-type values. It does **not** guess layers from `x/y/z`. Slash values in GURPS can represent protection by damage type or location (Basic Set, p. 282). Use the equipment picker to create reviewable layers, or add layers manually.
 
 ## Use it in the ADD
 
@@ -116,7 +118,7 @@ Rules references are to the supplied GURPS Basic Set: Characters p. 47 (Hardened
 
 ## Persistence and actor identity
 
-Data is stored under `flags.gurps-layered-armour.profile` on the edited actor, separately from imported sheet fields. A linked token uses its world actor. An unlinked token uses its synthetic actor and is explicitly labelled in the editor; changing it does not edit the original world actor.
+Data is stored under `flags.gurps-layered-armour.profile` on the edited actor, separately from imported sheet fields. Existing single profiles become a Default set in memory and are saved in the new set format only when you save. A linked token uses its world actor. An unlinked token uses its synthetic actor and is explicitly labelled in the editor; changing it does not edit the original world actor.
 
 Saving retains the order, enabled state, locations and overrides. The editor rejects a save if it sees a different profile than the one it opened, reducing accidental overwrites from two editor windows. This is a client-side conflict check, not a transactional multi-user lock.
 

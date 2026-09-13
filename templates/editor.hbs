@@ -1,9 +1,18 @@
-<form class="armour-form" autocomplete="off">
+<form class="armour-form" autocomplete="off" data-temporary="{{temporary}}">
   <header>
     <h2>{{name}} · Armour Layers</h2>
+    <section class="armour-set-controls">
+      <label>Editing set<select data-set-select data-help="Choose a set to edit. Switching sets retains draft edits; it does not change the active set.">{{#each sets}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{name}}</option>{{/each}}</select></label>
+      <label>Set name<input data-set-name value="{{setName}}" maxlength="80" data-help="Give this set a unique name, such as Everyday or Combat."></label>
+      <div class="armour-set-actions">
+        <button type="button" data-action="set-new">New set</button><button type="button" data-action="set-copy">Duplicate</button><button type="button" data-action="set-delete" {{disabled onlySet}}>Delete set</button>
+        {{#unless temporary}}<button type="button" data-action="set-active" {{disabled selectedIsActive}}>Make active</button>{{/unless}}
+      </div>
+      {{#unless temporary}}<p><strong>Active set after saving: {{activeName}}</strong>. Changing sets affects ADD protection only, not equipment or encumbrance.</p>{{/unless}}
+    </section>
     {{#if tokenName}}<p class="armour-notice">Unlinked token: {{tokenName}}. Saves affect this token's actor.</p>{{/if}}
     {{#if temporary}}<p class="armour-notice">For this ADD only, including Apply Multiple. Saving here does not change the actor's saved armour.</p>{{/if}}
-    <label><input type="checkbox" data-profile-enabled {{checked enabled}}> Use this armour profile in the ADD</label>
+    <label><input type="checkbox" data-profile-enabled {{checked enabled}}> Enable layered protection for this set</label>
     <p>Arrange layers from <strong>outermost to innermost</strong>. Include natural DR and every other source of protection for covered locations. This stack replaces the sheet's DR there. Locations without configured coverage keep their sheet DR.</p>
     <details><summary>Imported sheet DR reference</summary>
       <p>Slash values can describe damage types or locations. They are shown as imported; no layer order is inferred.</p>
@@ -12,9 +21,20 @@
       </tbody></table>
     </details>
   </header>
+  <details class="armour-equipment-picker">
+    <summary>Add from actor equipment</summary>
+    <p>Select equipment to create layers in this set. Detected values must be reviewed before they can affect damage.</p>
+    <div class="armour-picker-filters"><label>Search<input type="search" data-equipment-search data-help="Search equipment names and notes, including items inside containers."></label>
+    <label>Show<select data-equipment-filter data-help="Likely armour uses names, categories and DR data as suggestions. All equipment includes unrecognised armour."><option value="likely">Likely armour</option><option value="equipped">Equipped</option><option value="carried">Carried</option><option value="all">All equipment</option></select></label></div>
+    <div class="armour-equipment-list">
+    {{#each equipment}}<label class="armour-equipment-row" data-equipment-row="{{key}}"><input type="checkbox" data-equipment-choice value="{{key}}" {{checked selected}} data-help="Select this item to add it as a layer. Quantities do not multiply its DR."><span><strong>{{name}}</strong> · {{#if equipped}}Equipped{{else}}{{#if carried}}Carried{{else}}Not carried{{/if}}{{/if}}<small>{{notes}}</small>{{#if bonuses}}<small>Bonuses: {{bonuses}}</small>{{/if}}</span></label>
+    {{else}}<p>No equipment records on this actor. Manual layers remain available.</p>{{/each}}
+    </div>
+    <button type="button" data-action="equipment-add">Add selected as layers</button><button type="button" data-action="equipment-refresh">Refresh equipment list</button>
+  </details>
   <details class="armour-transfer">
     <summary>Export / import setup</summary>
-    <p>Export includes the current editor values, including unsaved edits. Import replaces the setup in this editor; the actor changes only when you save.</p>
+    <p>Export includes the displayed set, including unsaved edits. Equipment links are omitted. Import replaces only the displayed set; the actor changes only when you save.</p>
     <button type="button" data-action="export"><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export JSON</button>
     <label>Armour setup file<input type="file" data-import-file accept=".json,application/json"></label>
     <button type="button" data-action="import"><i class="fa-solid fa-file-import" aria-hidden="true"></i> Import into editor</button>
@@ -31,9 +51,12 @@
         <button type="button" data-action="down" {{disabled last}} title="Move inward" aria-label="Move inward">↓</button>
         <button type="button" data-action="delete" title="Delete layer" aria-label="Delete layer"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>
       </div>
+      {{#if source}}<div class="armour-source"><p>From equipment: {{source.name}}. {{sourceStatus}}</p><button type="button" data-action="source-refresh">Refresh from equipment</button></div>{{/if}}
+      {{#if reviewRequired}}<p class="armour-notice"><strong>Needs review.</strong> Check this layer's DR, coverage and modifiers before using it. {{#each source.issues}}{{this}} {{/each}}</p>{{/if}}
+      {{#if source}}<label><input type="checkbox" data-field="review" {{checked reviewed}}> I have reviewed this layer's armour values</label>{{else}}{{#if reviewRequired}}<label><input type="checkbox" data-field="review"> I have reviewed this layer's armour values</label>{{/if}}{{/if}}
       <div class="armour-fields">
         <label>Kind<select data-field="kind">{{#each kinds}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{value}}</option>{{/each}}</select></label>
-        <label>Default DR<input data-field="dr" type="number" min="0" max="1000000" step="1" value="{{dr}}"></label>
+        <label>Default DR<input data-field="dr" type="number" min="0" max="1000000" step="1" value="{{dr}}" placeholder="Needs review"></label>
         <label>Hardened level<input data-field="hardened" type="number" min="0" max="6" step="1" value="{{hardened}}"></label>
         <label class="armour-flex"><input data-field="flexible" type="checkbox" {{checked flexible}}> Flexible</label>
       </div>
@@ -50,5 +73,5 @@
     {{else}}<p class="armour-empty">No layers yet. Add armour, set its DR and coverage, then save.</p>{{/each}}
   </div>
   <p data-error role="alert" class="armour-error" hidden></p>
-  <footer><button type="button" data-action="add"><i class="fa-solid fa-plus"></i> Add layer</button><span></span><button type="button" data-action="cancel">Cancel</button><button type="submit" data-action="save"><i class="fa-solid fa-save"></i> {{#if temporary}}Use for this ADD{{else}}Save to actor{{/if}}</button></footer>
+  <footer><button type="button" data-action="add"><i class="fa-solid fa-plus"></i> Add layer</button><span></span><button type="button" data-action="cancel">Cancel</button><button type="submit" data-action="save"><i class="fa-solid fa-save"></i> {{#if temporary}}Use for this ADD{{else}}Save sets to actor{{/if}}</button></footer>
 </form>

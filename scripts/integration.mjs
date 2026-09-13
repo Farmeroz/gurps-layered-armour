@@ -1,3 +1,4 @@
+import { attachHelp, helpEnabled } from './help.mjs';
 import {
   readProfile,
   validateProfile,
@@ -219,8 +220,9 @@ export function patchADD(NativeADD, openEditor) {
         '#override-dr input, #override-dr button, #hardened, [name="hardened"], #flexible-armor',
       )) {
         input.disabled = true;
-        input.title =
-          'Controlled by Armour Layers. Turn off layered DR above to use native controls.';
+        input.title = helpEnabled()
+          ? 'Controlled by Armour Layers. Turn off layered DR above to use native controls.'
+          : '';
       }
       // Keep the location chooser's DR consistent with the configured profile.
       const profile = state.override ?? readProfile(this.actor);
@@ -232,6 +234,8 @@ export function patchADD(NativeADD, openEditor) {
       }
       fixResults(root, state);
     }
+    this._armourHideHelp?.();
+    this._armourHideHelp = attachHelp(panel);
     return result;
   };
   proto.resolveInjury = async function (keepOpen, injury, publicly, results = null) {

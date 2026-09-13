@@ -4,7 +4,7 @@ Start with the setup commands in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Automated coverage
 
-Existing tests cover layer ordering, armour divisors and hardening, calculation breakdowns, profile validation/import/export, editor controls, commands, and native GGA damage resolution together with the Manual Damage module. Foundry documents and UI are mocked.
+Existing tests cover layer ordering, armour divisors and hardening, calculation breakdowns, profile validation/import/export, editor controls, commands, and native GGA damage resolution together with the Manual Damage module. New cases cover equipment recursion and deduplication, DR bonus parsing, unknown-value review, explicit source refresh, named-set migration and active selection, portable source-link removal, tooltips and the injury guard for unreviewed equipment. Foundry documents and UI are mocked.
 
 The suite exercises these behaviours but does not claim complete coverage or reproduce a connected Foundry world. All automated cases should run; the standard test command treats skipped Node tests as a failure. Test output is saved under `test-output/`.
 
@@ -22,6 +22,8 @@ Open an owned test actor from the directory, save outer DR 12/Hardened 1 and inn
 Open a saved armour setup, reorder layers, export/import it, and apply damage with an armour divisor and hardening. Also test it together with the Manual Damage candidate.
 
 Use your normal Foundry/GGA versions and module combination, and refresh connected clients after updating. Record unexpected notifications, visibility changes, or changed resource totals, together with the module versions and steps to reproduce them.
+
+Create Everyday and Combat sets from inventory items. Verify both retain their own edits, only the active set supplies ADD DR, and switching sets does not change equipment. Change an equipment item, reopen the editor and explicitly refresh its layer. Review missing DR and coverage before applying injury. Check tooltip hover and keyboard focus, then disable the client preference and confirm the labels remain usable.
 
 ## Package verification
 
