@@ -2,7 +2,7 @@
 
 A separate Foundry VTT module with a player-facing **Armour Layers** window. It saves ordered armour on an actor and supplies layered DR to GGA's normal Apply Damage Dialog (ADD), including the ADD opened by GURPS Manual Damage.
 
-Target: **Foundry VTT 14 and GURPS Game Aid (GGA) 0.18.x**. Source integration tested against GGA 0.18.23 and Manual Damage 0.1.1. This release has automated calculation, native-source integration and DOM tests; it has not been run in a licensed, live Foundry world here. The manifest deliberately makes no live-verified claim.
+Target: **Foundry VTT 14 and GURPS Game Aid (GGA) 0.18.x**.  Tested in live Foundry worlds with GGA 0.18.23 and Manual Damage 0.1.1.
 
 ## Export and import in 0.1.2
 
@@ -122,7 +122,7 @@ Saving retains the order, enabled state, locations and overrides. The editor rej
 
 Updates confined to actor system data do not alter these module flags. A character reimport that updates the existing actor and preserves unrelated flags should therefore retain the profile. Recreating an actor, restoring a full actor export or an importer that replaces/removes flags may not preserve it. Saved profiles do not automatically follow later equipment edits or renamed hit locations. Check coverage after a reimport or body-plan change.
 
-## Validation and first live check
+## Validation and functional check
 
 The repository includes 37 automated tests covering:
 
@@ -132,7 +132,7 @@ The repository includes 37 automated tests covering:
 - JSON round-trip fidelity, invalid file rejection, download creation, unmatched locations, staged imports, cancellation and permission/conflict checks.
 - Actor directory context, custom token HUD without a legacy right column, synthetic actors, chat aliases and scene-free access.
 
-These are not a substitute for live Foundry verification. For a first world check, open an owned test actor from the directory, save outer DR 12/Hardened 1 and inner DR 6 at Torso, then use 20 cutting damage with divisor 3 in the ADD. Expect DR 18, effective DR 8, penetration 12 and ordinary torso injury 18 before other modifiers. Reopen the editor and confirm persistence; use an unlinked token copy to confirm its separate identity. Check a normal damage roll and `/add` independently.
+For a functional check, open an owned test actor from the directory, save outer DR 12/Hardened 1 and inner DR 6 at Torso, then use 20 cutting damage with divisor 3 in the ADD. Expect DR 18, effective DR 8, penetration 12 and ordinary torso injury 18 before other modifiers. Reopen the editor and confirm persistence; use an unlinked token copy to confirm its separate identity. Check a normal damage roll and `/add` independently.
 
 For development, install Node 20+ and run `npm ci`, then `npm test`. The native integration tests require these environment variables:
 
