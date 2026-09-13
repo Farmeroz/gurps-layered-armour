@@ -1,3 +1,4 @@
+import * as log from './log.mjs';
 import { ID, canEdit, readProfile } from './core.mjs';
 import { createEditorClass } from './editor.mjs';
 import { patchADD } from './integration.mjs';
@@ -21,7 +22,7 @@ export async function openEditor(actor, options = {}) {
     editor.render(true);
     return editor;
   } catch (error) {
-    console.error(ID, error);
+    log.error(error);
     ui.notifications.error(`Armour Layers: ${error.message}`);
     return null;
   }
@@ -112,7 +113,7 @@ Hooks.once('ready', async () => {
       (await import(foundry.utils.getRoute('systems/gurps/module/damage/applydamage.js'))).default;
     patchADD(NativeADD, openEditor);
   } catch (error) {
-    console.error(ID, error);
+    log.error(error);
     ui.notifications.error(`Armour Layers: ${error.message}`);
   }
   Hooks.on('updateActor', (actor, changes) => {

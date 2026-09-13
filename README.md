@@ -1,10 +1,10 @@
-# GURPS Layered Armour 0.1.2
+# GURPS Layered Armour 0.1.3
 
 A separate Foundry VTT module with a player-facing **Armour Layers** window. It saves ordered armour on an actor and supplies layered DR to GGA's normal Apply Damage Dialog (ADD), including the ADD opened by GURPS Manual Damage.
 
 Target: **Foundry VTT 14 and GURPS Game Aid (GGA) 0.18.x**. Tested in live Foundry worlds with GGA 0.18.23 and Manual Damage 0.1.1.
 
-## Export and import in 0.1.2
+## Export and import
 
 Armour setups can now be shared between actors and game worlds as portable JSON files. Install this module version (or a compatible newer version) in the destination world.
 
@@ -111,7 +111,7 @@ Rules references are to the supplied GURPS Basic Set: Characters p. 47 (Hardened
 - Wounding is applied after final penetration, once. Merely swapping simple DR layers with different Hardened levels need not change final penetration. Example: 20 damage, divisor 3, DR 12/Hardened 1 and DR 6/Hardened 0 gives effective DR 8 and 12 penetrating damage in either order.
 - Rigid outer DR reduces the damage eligible for blunt trauma from flexible inner armour (p. 379). Consecutive flexible layers combine. An attack that penetrates the stack inflicts no additional blunt trauma. GGA's blunt-trauma setting and explicit override remain in use.
 - If flexible armour stops the attack before an inner rigid layer and would inflict blunt trauma, application requires a reviewed native **Blunt Trauma** override. Enter 0 if the adjudicated injury is zero. The module does not silently decide that interaction.
-- **Large-area and explosion armour calculation is not automated in 0.1.0.** Choose a specific location for an ordinary hit, or turn off layered DR in that ADD and enter reviewed native DR/options. Calculated injury is blocked while the unresolved layered case remains active.
+- **Large-area and explosion armour calculation is not automated.** Choose a specific location for an ordinary hit, or turn off layered DR in that ADD and enter reviewed native DR/options. Calculated injury is blocked while the unresolved layered case remains active.
 - Corrosion and ablative/semi-ablative depletion, armour damage, gaps/chinks, partial coverage rolls, special penetration modifiers, force-field effects beyond DR, and equipment weight/DX/encumbrance changes are not automated. Adjust the relevant values manually. Layer kinds document the source; they do not implement every modifier associated with it. Innate-layer order and lawful worn combinations remain player/GM rules decisions.
 
 ## Persistence and actor identity
@@ -121,30 +121,6 @@ Data is stored under `flags.gurps-layered-armour.profile` on the edited actor, s
 Saving retains the order, enabled state, locations and overrides. The editor rejects a save if it sees a different profile than the one it opened, reducing accidental overwrites from two editor windows. This is a client-side conflict check, not a transactional multi-user lock.
 
 Updates confined to actor system data do not alter these module flags. A character reimport that updates the existing actor and preserves unrelated flags should therefore retain the profile. Recreating an actor, restoring a full actor export or an importer that replaces/removes flags may not preserve it. Saved profiles do not automatically follow later equipment edits or renamed hit locations. Check coverage after a reimport or body-plan change.
-
-## Validation and functional check
-
-The repository includes 37 automated tests covering:
-
-- Per-layer Hardened, additive rounding, split DR including zero, disabled coverage, fractional divisors and ordered blunt trauma.
-- Real GGA 0.18.23 calculator/ADD source with mocked Foundry documents, including native injury/application, quiet messages, multiple hits, and Manual Damage 0.1.1 queues.
-- Editor template rendering, persistence/reopening, temporary edits, ordering, ownership loss and conflicting saves.
-- JSON round-trip fidelity, invalid file rejection, download creation, unmatched locations, staged imports, cancellation and permission/conflict checks.
-- Actor directory context, custom token HUD without a legacy right column, synthetic actors, chat aliases and scene-free access.
-
-For a functional check, open an owned test actor from the directory, save outer DR 12/Hardened 1 and inner DR 6 at Torso, then use 20 cutting damage with divisor 3 in the ADD. Expect DR 18, effective DR 8, penetration 12 and ordinary torso injury 18 before other modifiers. Reopen the editor and confirm persistence; use an unlinked token copy to confirm its separate identity. Check a normal damage roll and `/add` independently.
-
-For development, install Node 20+ and run `npm ci`, then `npm test`. The native integration tests require these environment variables:
-
-```sh
-GGA_SOURCE=/absolute/path/to/gurps-0.18.23 \
-MANUAL_ADD_SOURCE=/absolute/path/to/gurps-manual-add \
-npm test
-```
-
-Without those paths, the native integration group is explicitly skipped. Required GGA source files are `lib/miscellaneous-settings.js`, `module/damage/damagecalculator.js` and `module/damage/applydamage.js`. System source, book PDFs and runtime dependencies are not bundled.
-
-Developer references: [GGA source](https://github.com/crnormand/gurps/tree/v0.18.23), [Foundry actor context hook](https://foundryvtt.com/api/functions/hookEvents.getDocumentContextOptions.html), and [Foundry token context hook](https://foundryvtt.com/api/functions/hookEvents.getPlaceableContextOptions.html).
 
 ## Support and licence
 

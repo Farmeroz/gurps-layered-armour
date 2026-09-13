@@ -1,0 +1,23 @@
+[
+  {
+    "directory": "gga",
+    "environment": "GGA_SOURCE",
+    "repository": "crnormand/gurps",
+    "commit": "4fb95f7ed8e114993c65ef77dc912a7b77957b02",
+    "version": "0.18.23",
+    "files": [
+      "system.json",
+      "lib/miscellaneous-settings.js",
+      "module/damage/applydamage.js",
+      "module/damage/damagecalculator.js"
+    ]
+  },
+  {
+    "directory": "manual-add",
+    "environment": "MANUAL_ADD_SOURCE",
+    "repository": "Farmeroz/gurps-manual-add",
+    "commit": "74af8f7ea7736cb5e095364ebdd64785258674c7",
+    "version": "0.1.1",
+    "files": ["module.json", "scripts/core.mjs", "scripts/dialog.mjs"]
+  }
+]
