@@ -2,7 +2,7 @@
 
 A separate Foundry VTT module with a player-facing **Armour Layers** window. It saves ordered armour on an actor and supplies layered DR to GGA's normal Apply Damage Dialog (ADD), including the ADD opened by GURPS Manual Damage.
 
-Target: **Foundry VTT 14 and GURPS Game Aid (GGA) 0.18.x**.  Tested in live Foundry worlds with GGA 0.18.23 and Manual Damage 0.1.1.
+Target: **Foundry VTT 14 and GURPS Game Aid (GGA) 0.18.x**. Tested in live Foundry worlds with GGA 0.18.23 and Manual Damage 0.1.1.
 
 ## Export and import in 0.1.2
 
@@ -148,6 +148,6 @@ Developer references: [GGA source](https://github.com/crnormand/gurps/tree/v0.18
 
 ## Support and licence
 
-Report problems through [GitHub Issues](https://github.com/Farmeroz/gurps-layered-armour/issues).  Released under the [MIT licence](LICENSE).
+Report problems through [GitHub Issues](https://github.com/Farmeroz/gurps-layered-armour/issues). Released under the [MIT licence](LICENSE).
 
-GURPS is a trademark of Steve Jackson Games.  This unofficial module is not affiliated with or endorsed by Steve Jackson Games, Foundry Gaming LLC, or the GURPS Game Aid maintainers.
+GURPS is a trademark of Steve Jackson Games. This unofficial module is not affiliated with or endorsed by Steve Jackson Games, Foundry Gaming LLC, or the GURPS Game Aid maintainers.
