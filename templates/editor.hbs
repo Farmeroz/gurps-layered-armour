@@ -1,0 +1,54 @@
+<form class="armour-form" autocomplete="off">
+  <header>
+    <h2>{{name}} · Armour Layers</h2>
+    {{#if tokenName}}<p class="armour-notice">Unlinked token: {{tokenName}}. Saves affect this token's actor.</p>{{/if}}
+    {{#if temporary}}<p class="armour-notice">For this ADD only, including Apply Multiple. Saving here does not change the actor's saved armour.</p>{{/if}}
+    <label><input type="checkbox" data-profile-enabled {{checked enabled}}> Use this armour profile in the ADD</label>
+    <p>Arrange layers from <strong>outermost to innermost</strong>. Include natural DR and every other source of protection for covered locations. This stack replaces the sheet's DR there. Locations without configured coverage keep their sheet DR.</p>
+    <details><summary>Imported sheet DR reference</summary>
+      <p>Slash values can describe damage types or locations. They are shown as imported; no layer order is inferred.</p>
+      <table><thead><tr><th>Location</th><th>Sheet DR</th><th>Damage-type values</th></tr></thead><tbody>
+        {{#each sheetDR}}<tr><td>{{where}}</td><td>{{dr}}</td><td>{{split}}</td></tr>{{/each}}
+      </tbody></table>
+    </details>
+  </header>
+  <details class="armour-transfer">
+    <summary>Export / import setup</summary>
+    <p>Export includes the current editor values, including unsaved edits. Import replaces the setup in this editor; the actor changes only when you save.</p>
+    <button type="button" data-action="export"><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export JSON</button>
+    <label>Armour setup file<input type="file" data-import-file accept=".json,application/json"></label>
+    <button type="button" data-action="import"><i class="fa-solid fa-file-import" aria-hidden="true"></i> Import into editor</button>
+  </details>
+  {{#if importNotice}}<p class="armour-notice" role="status">{{importNotice}}</p>{{/if}}
+  {{#if unmatched.length}}<aside class="armour-notice" role="alert"><strong>Check hit locations:</strong> these names do not match this actor: {{#each unmatched}}{{#unless @first}}, {{/unless}}{{this}}{{/each}}. Their values are retained in Coverage for review. Tick the destination locations and copy any DR overrides there, then untick the unmatched rows. “Covers every location” applies to this actor's entire body plan.</aside>{{/if}}
+  <div class="armour-layers-list">
+    {{#each layers}}
+    <section class="armour-layer" data-index="{{index}}">
+      <div class="armour-layer-heading">
+        <strong>{{number}}.</strong><input data-field="name" value="{{name}}" maxlength="100" aria-label="Layer name">
+        <label><input data-field="enabled" type="checkbox" {{checked enabled}}> Worn / active</label>
+        <button type="button" data-action="up" {{disabled first}} title="Move outward" aria-label="Move outward">↑</button>
+        <button type="button" data-action="down" {{disabled last}} title="Move inward" aria-label="Move inward">↓</button>
+        <button type="button" data-action="delete" title="Delete layer" aria-label="Delete layer"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>
+      </div>
+      <div class="armour-fields">
+        <label>Kind<select data-field="kind">{{#each kinds}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{value}}</option>{{/each}}</select></label>
+        <label>Default DR<input data-field="dr" type="number" min="0" max="1000000" step="1" value="{{dr}}"></label>
+        <label>Hardened level<input data-field="hardened" type="number" min="0" max="6" step="1" value="{{hardened}}"></label>
+        <label class="armour-flex"><input data-field="flexible" type="checkbox" {{checked flexible}}> Flexible</label>
+      </div>
+      <label>Damage-type DR overrides<input data-field="split" value="{{splitText}}" placeholder="e.g. cut=4; pi=6; pi+=6"></label>
+      <details><summary data-coverage-summary>Coverage: {{coverageSummary}}</summary>
+        <label><input type="checkbox" data-field="allLocations" {{checked allLocations}}> Covers every location</label>
+        <p data-coverage-hint></p>
+        <p>Blank DR uses the default. Location damage-type entries override the corresponding layer entries. A disabled layer keeps its coverage, so removing armour does not restore its imported DR.</p>
+        <table><thead><tr><th data-coverage-heading>Covered</th><th>Location</th><th>DR override</th><th>Damage-type overrides</th></tr></thead><tbody>
+          {{#each coverage}}<tr data-location="{{where}}"><td><input type="checkbox" data-cover {{checked checked}} aria-label="Cover {{where}}"></td><td>{{where}}</td><td><input data-dr type="number" min="0" max="1000000" step="1" value="{{dr}}" placeholder="Default" aria-label="{{where}} DR"></td><td><input data-split value="{{splitText}}" placeholder="e.g. cr=2" aria-label="{{where}} damage-type DR"></td></tr>{{/each}}
+        </tbody></table>
+      </details>
+    </section>
+    {{else}}<p class="armour-empty">No layers yet. Add armour, set its DR and coverage, then save.</p>{{/each}}
+  </div>
+  <p data-error role="alert" class="armour-error" hidden></p>
+  <footer><button type="button" data-action="add"><i class="fa-solid fa-plus"></i> Add layer</button><span></span><button type="button" data-action="cancel">Cancel</button><button type="submit" data-action="save"><i class="fa-solid fa-save"></i> {{#if temporary}}Use for this ADD{{else}}Save to actor{{/if}}</button></footer>
+</form>
