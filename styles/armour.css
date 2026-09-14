@@ -209,3 +209,69 @@
   height: auto;
   overflow: hidden;
 }
+
+.armour-set-controls,
+.armour-equipment-picker {
+  border: 1px solid var(--armour-border, #858278);
+  border-radius: 4px;
+  padding: 10px;
+}
+.armour-set-controls > label {
+  display: inline-block;
+  width: 47%;
+  margin-right: 2%;
+}
+.armour-set-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.armour-set-actions button,
+.armour-editor .armour-equipment-picker > button,
+.armour-editor .armour-source button {
+  width: auto;
+}
+.armour-picker-filters {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 10px;
+}
+.armour-equipment-list {
+  max-height: 230px;
+  overflow-y: auto;
+  margin: 8px 0;
+}
+.armour-equipment-row {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border-bottom: 1px solid #85827840;
+}
+.armour-equipment-row[hidden] {
+  display: none;
+}
+.armour-equipment-row small {
+  display: block;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  max-height: 70px;
+  overflow-y: auto;
+}
+.armour-source {
+  font-size: 0.9em;
+  margin: 8px 0;
+}
+.armour-help-tooltip {
+  position: fixed;
+  z-index: 100000;
+  max-width: 300px;
+  padding: 9px 12px;
+  border: 1px solid #a79d86;
+  border-radius: 5px;
+  background: #27251f;
+  color: #fff9ed;
+  font: 14px/1.4 sans-serif;
+  pointer-events: none;
+  box-shadow: 0 2px 8px #0006;
+}

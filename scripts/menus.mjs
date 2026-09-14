@@ -1,3 +1,4 @@
+import { attachHelp, helpEnabled } from './help.mjs';
 import { canEdit, elementOf } from './core.mjs';
 
 export function actorForRow(target) {
@@ -25,7 +26,7 @@ export function createMenus(open) {
     if (!Array.isArray(menu) || menu.some((x) => x.armourLayersEntry)) return;
     menu.push({
       name: 'Armour Layers',
-      icon: '<i class="fa-solid fa-layer-group"></i>',
+      icon: `<i class="fa-solid fa-layer-group" ${helpEnabled() ? 'title="Open this actor’s saved armour sets and layer editor."' : ''}></i>`,
       armourLayersEntry: true,
       condition: (target) => permitted(actorForRow(target)),
       callback: (target) => {
@@ -37,7 +38,7 @@ export function createMenus(open) {
     if (!Array.isArray(menu) || menu.some((x) => x.armourLayersEntry)) return;
     menu.push({
       name: 'Armour Layers',
-      icon: '<i class="fa-solid fa-layer-group"></i>',
+      icon: `<i class="fa-solid fa-layer-group" ${helpEnabled() ? 'title="Open this actor’s saved armour sets and layer editor."' : ''}></i>`,
       armourLayersEntry: true,
       condition: (target) => permitted(tokenFor(application, target)?.actor),
       callback: (target) => {
@@ -73,6 +74,10 @@ export function createMenus(open) {
       void open({ token: tokenFor(application) });
     });
     host.append(button);
+    button.dataset.help =
+      'Open Armour Layers for this token’s actor. Unlinked token data stays separate.';
+    application._armourHudHideHelp?.();
+    application._armourHudHideHelp = attachHelp(host);
   }
   return { actorContext, tokenContext, hud };
 }

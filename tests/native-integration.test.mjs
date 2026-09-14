@@ -236,6 +236,35 @@ if (!source || !manual) {
     await d.getData();
     return d;
   }
+  test('native ADD reads the active named set and prevents HP writes for unresolved equipment', async () => {
+    reset();
+    const a = layers(actor('sets', 99), { dr: 12, hardened: 1 }, { dr: 6 });
+    const combat = structuredClone(a.flags.profile);
+    const everyday = structuredClone(combat);
+    everyday.layers = [{ ...newLayer(['Torso']), dr: 2 }];
+    a.flags.profile = {
+      schema: 2,
+      activeId: 'combat',
+      sets: [
+        { id: 'default', name: 'Everyday', profile: everyday },
+        { id: 'combat', name: 'Combat', profile: combat },
+      ],
+    };
+    const d = await ready(new NativeADD(a, { damage: 20, damageType: 'cut', armorDivisor: 3 }));
+    assert.equal(d._calculator.effectiveDR, 8);
+    combat.layers[0].reviewRequired = true;
+    combat.layers[0].dr = null;
+    assert.match(reviewError(stateFor(d)), /needs review/);
+    await assert.rejects(d.resolveInjury(true, 18, true, 'calculated result'), /needs review/);
+    assert.equal(a.system.HP.value, 30);
+    assert.equal(updates.length, 0);
+    assert.equal(messages.length, 0);
+    combat.layers[0].dr = 12;
+    combat.layers[0].reviewRequired = false;
+    assert.equal(reviewError(stateFor(d)), '');
+    await d.resolveInjury(true, d._calculator.pointsToApply, true, 'calculated result');
+    assert.equal(a.system.HP.value, 12);
+  });
   test('native ADD and Manual Damage both use layers; native wound modifier and HP update remain', async () => {
     reset();
     const a = layers(actor('one', 99), { dr: 12, hardened: 1 }, { dr: 6 });

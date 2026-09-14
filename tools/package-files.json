@@ -4,6 +4,8 @@
   "module.json",
   "scripts/core.mjs",
   "scripts/editor.mjs",
+  "scripts/equipment.mjs",
+  "scripts/help.mjs",
   "scripts/integration.mjs",
   "scripts/log.mjs",
   "scripts/main.mjs",

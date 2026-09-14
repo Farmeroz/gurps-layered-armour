@@ -38,7 +38,7 @@ test('portable JSON round-trip preserves every armour field and removes actor-sp
   assert.deepEqual(copy, validateProfile(p));
   assert.doesNotMatch(text, /Actor.source|source-world|Item.source/);
   assert.equal(JSON.parse(text).format, ID);
-  assert.equal(JSON.parse(text).version, 1);
+  assert.equal(JSON.parse(text).version, 2);
   copy.layers[0].dr = 99;
   assert.equal(p.layers[0].dr, 12);
   assert.deepEqual(importSetup('\uFEFF' + text), validateProfile(p));
@@ -48,7 +48,7 @@ test('malformed, unrelated and future JSON is rejected with useful errors', () =
   for (const value of [null, [], {}, { format: 'other', version: 1, profile: setup() }])
     assert.throws(() => importSetup(JSON.stringify(value)), /exported by/);
   assert.throws(
-    () => importSetup(JSON.stringify({ format: ID, version: 2, profile: setup() })),
+    () => importSetup(JSON.stringify({ format: ID, version: 3, profile: setup() })),
     /version/,
   );
   const p = setup();

@@ -9,7 +9,41 @@ export const escapeHTML = (value) =>
 export const elementOf = (value) => (value?.nodeType ? value : (value?.[0] ?? value));
 export const emptyProfile = () => ({ schema: 1, enabled: false, layers: [] });
 export const canEdit = (actor, user) => !!actor && !!user && (user.isGM || actor.isOwner);
-export const readProfile = (actor) => clone(actor.getFlag(ID, 'profile') ?? emptyProfile());
+export function normaliseStore(value) {
+  if (!value || value.schema === 1)
+    return {
+      schema: 2,
+      activeId: 'default',
+      sets: [{ id: 'default', name: 'Default', profile: validateProfile(value ?? emptyProfile()) }],
+    };
+  if (
+    value.schema !== 2 ||
+    !Array.isArray(value.sets) ||
+    !value.sets.length ||
+    value.sets.length > 30
+  )
+    throw new Error('Invalid armour sets. Use 1–30 sets.');
+  const ids = new Set(),
+    names = new Set();
+  const sets = value.sets.map((set) => {
+    if (typeof set.id !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(set.id) || ids.has(set.id))
+      throw new Error('Invalid or duplicate set ID.');
+    const name = String(set.name ?? '').trim();
+    if (!name || name.length > 80 || names.has(name.toLowerCase()))
+      throw new Error('Each armour set needs a unique name (up to 80 characters).');
+    ids.add(set.id);
+    names.add(name.toLowerCase());
+    return { id: set.id, name, profile: validateProfile(set.profile) };
+  });
+  if (!ids.has(value.activeId)) throw new Error('The active armour set is missing.');
+  return { schema: 2, activeId: value.activeId, sets };
+}
+export const readStore = (actor) =>
+  normaliseStore(clone(actor.getFlag(ID, 'profile') ?? emptyProfile()));
+export const readProfile = (actor) => {
+  const store = readStore(actor);
+  return clone(store.sets.find((set) => set.id === store.activeId).profile);
+};
 export function locationsOf(actor) {
   const names = [
     ...new Set(
@@ -78,9 +112,25 @@ export function validateProfile(value) {
       const seen = new Set();
       return {
         name,
+        ...(layer.reviewRequired !== undefined ? { reviewRequired: !!layer.reviewRequired } : {}),
+        ...(layer.source
+          ? {
+              source: {
+                key: String(layer.source.key ?? '').slice(0, 300),
+                name: String(layer.source.name ?? '').slice(0, 100),
+                fingerprint: String(layer.source.fingerprint ?? '').slice(0, 20000),
+                issues: Array.isArray(layer.source.issues)
+                  ? layer.source.issues.slice(0, 20).map((issue) => String(issue).slice(0, 300))
+                  : [],
+              },
+            }
+          : {}),
         enabled: !!layer.enabled,
         kind: layer.kind,
-        dr: number(layer.dr, `${name} DR`),
+        dr:
+          layer.reviewRequired === true && layer.dr === null
+            ? null
+            : number(layer.dr, `${name} DR`),
         hardened: number(layer.hardened, `${name} Hardened`, 6),
         flexible: layer.kind === 'forcefield' ? false : !!layer.flexible,
         split: split(layer.split),
@@ -141,6 +191,10 @@ export function hardenedDivisor(divisor, level) {
 export function stackFor(profile, where, type, divisor = 1, multiplier = 1) {
   profile = validateProfile(profile);
   const managed = profile.enabled && profile.layers.some((layer) => covers(layer, where));
+  if (profile.enabled && profile.layers.some((layer) => layer.enabled && layer.reviewRequired))
+    throw new Error(
+      'An active armour layer needs review. Open Armour Layers and confirm its DR, coverage and modifiers before applying injury.',
+    );
   if (!managed) return null;
   if (!(divisor > 0 || divisor === -1) || !Number.isFinite(divisor))
     throw new Error('Invalid armour divisor.');

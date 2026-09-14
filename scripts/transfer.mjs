@@ -12,7 +12,8 @@ function strictProfile(profile) {
     if (
       !isRecord(layer) ||
       typeof layer.name !== 'string' ||
-      !numeric(layer.dr) ||
+      (layer.reviewRequired !== undefined && typeof layer.reviewRequired !== 'boolean') ||
+      !(numeric(layer.dr) || (layer.dr === null && layer.reviewRequired === true)) ||
       !numeric(layer.hardened) ||
       !['enabled', 'flexible', 'allLocations'].every((key) => typeof layer[key] === 'boolean') ||
       !split(layer.split) ||
@@ -27,11 +28,14 @@ function strictProfile(profile) {
     }
   }
   // Rebuild known fields only; never merge imported objects into an actor.
-  return validateProfile(profile);
+  const clean = validateProfile(profile);
+  // Source references belong to an actor; portable sets contain armour values only.
+  for (const layer of clean.layers) delete layer.source;
+  return clean;
 }
 export function exportSetup(profile) {
   const text =
-    JSON.stringify({ format: ID, version: 1, profile: strictProfile(profile) }, null, 2) + '\n';
+    JSON.stringify({ format: ID, version: 2, profile: strictProfile(profile) }, null, 2) + '\n';
   if (size(text) > MAX_TRANSFER_BYTES)
     throw new Error('Armour setup exceeds the 16 MiB transfer limit.');
   return text;
@@ -47,7 +51,7 @@ export function importSetup(text) {
   }
   if (!isRecord(file) || file.format !== ID)
     throw new Error('Choose a JSON setup exported by GURPS Layered Armour.');
-  if (file.version !== 1)
+  if (![1, 2].includes(file.version))
     throw new Error('Unsupported armour export version. A newer module may be required.');
   return strictProfile(file.profile);
 }

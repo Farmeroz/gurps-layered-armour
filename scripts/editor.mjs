@@ -2,6 +2,8 @@ import {
   ID,
   clone,
   readProfile,
+  readStore,
+  normaliseStore,
   validateProfile,
   canEdit,
   locationsOf,
@@ -19,6 +21,9 @@ import {
   MAX_TRANSFER_BYTES,
 } from './transfer.mjs';
 
+import { equipmentOn, layerFromEquipment, sourceStatus } from './equipment.mjs';
+import { attachHelp } from './help.mjs';
+
 export function createEditorClass(Base) {
   return class ArmourLayersEditor extends Base {
     static get defaultOptions() {
@@ -35,8 +40,16 @@ export function createEditorClass(Base) {
       this.actor = actor;
       this.temporary = temporary;
       this.onSave = onSave;
-      this.original = JSON.stringify(readProfile(actor));
-      this.draft = validateProfile(profile ?? readProfile(actor));
+      this.original = JSON.stringify(readStore(actor));
+      this.store = readStore(actor);
+      this.selectedId = this.store.activeId;
+      this.draft = validateProfile(
+        profile ?? this.store.sets.find((set) => set.id === this.selectedId).profile,
+      );
+      this.equipment = equipmentOn(actor);
+      this.pickerSelection = new Set();
+      this.filter = 'likely';
+      this.search = '';
       this.locations = [
         ...new Set([
           ...locationsOf(actor),
@@ -51,6 +64,19 @@ export function createEditorClass(Base) {
     getData() {
       return {
         importNotice: this.importNotice,
+        setName: this.store.sets.find((set) => set.id === this.selectedId).name,
+        activeName: this.store.sets.find((set) => set.id === this.store.activeId).name,
+        sets: this.store.sets.map((set) => ({
+          id: set.id,
+          name: set.name,
+          selected: set.id === this.selectedId,
+        })),
+        onlySet: this.store.sets.length === 1,
+        selectedIsActive: this.selectedId === this.store.activeId,
+        equipment: this.equipment.map((record) => ({
+          ...record,
+          selected: this.pickerSelection.has(record.key),
+        })),
         unmatched: unmatchedLocations(this.draft, locationsOf(this.actor)),
         name: this.actor.name,
         tokenName: this.actor.isToken ? this.actor.token?.name : null,
@@ -63,6 +89,8 @@ export function createEditorClass(Base) {
         })),
         layers: this.draft.layers.map((layer, index) => ({
           ...layer,
+          reviewed: !layer.reviewRequired,
+          sourceStatus: sourceStatus(layer, this.equipment),
           index,
           number: index + 1,
           coverageSummary: layer.allLocations
@@ -91,10 +119,23 @@ export function createEditorClass(Base) {
       const layers = [...root.querySelectorAll('.armour-layer')].map((card) => {
         const value = (name) => card.querySelector(`[data-field="${name}"]`).value;
         const checked = (name) => card.querySelector(`[data-field="${name}"]`).checked;
+        const previous = this.draft.layers[Number(card.dataset.index)];
+        const reviewInput = card.querySelector('[data-field="review"]');
+        const reviewRequired = reviewInput ? !reviewInput.checked : previous?.reviewRequired;
+        if (
+          reviewInput?.checked &&
+          !checked('allLocations') &&
+          ![...card.querySelectorAll('[data-cover]')].some((input) => input.checked)
+        )
+          throw new Error(
+            'Select at least one protected location before marking this layer reviewed.',
+          );
         return {
+          ...(previous?.source ? { source: clone(previous.source) } : {}),
+          ...(reviewRequired !== undefined ? { reviewRequired } : {}),
           name: value('name'),
           enabled: checked('enabled'),
-          dr: value('dr'),
+          dr: value('dr') === '' && reviewRequired ? null : value('dr'),
           kind: value('kind'),
           hardened: value('hardened'),
           flexible: checked('flexible'),
@@ -121,6 +162,8 @@ export function createEditorClass(Base) {
     activateListeners(html) {
       super.activateListeners(html);
       const root = elementOf(html);
+      this.hideHelp?.();
+      this.hideHelp = attachHelp(root);
       const error = (message) => {
         const output = root.querySelector('[data-error]');
         output.textContent = message;
@@ -150,7 +193,54 @@ export function createEditorClass(Base) {
         }
       };
       for (const card of root.querySelectorAll('.armour-layer')) updateCoverage(card);
+      const capture = () => {
+        this.draft = this.readForm(root);
+        const set = this.store.sets.find((set) => set.id === this.selectedId);
+        set.profile = clone(this.draft);
+        set.name = root.querySelector('[data-set-name]').value.trim();
+        normaliseStore(this.store);
+      };
+      const filterEquipment = () => {
+        this.search = root.querySelector('[data-equipment-search]').value;
+        this.filter = root.querySelector('[data-equipment-filter]').value;
+        for (const row of root.querySelectorAll('[data-equipment-row]')) {
+          const record = this.equipment.find((record) => record.key === row.dataset.equipmentRow);
+          row.hidden = !(
+            record &&
+            (!this.search ||
+              (record.name + ' ' + record.notes)
+                .toLowerCase()
+                .includes(this.search.toLowerCase())) &&
+            (this.filter === 'all' ||
+              (this.filter === 'likely' && record.likely) ||
+              (this.filter === 'carried' && record.carried) ||
+              (this.filter === 'equipped' && record.equipped))
+          );
+        }
+      };
+      root.querySelector('[data-equipment-search]').value = this.search;
+      for (const option of root.querySelectorAll('[data-equipment-filter] option'))
+        option.selected = option.value === this.filter;
+      root.querySelector('[data-equipment-search]').addEventListener('input', filterEquipment);
+      root.querySelector('[data-equipment-filter]').addEventListener('change', filterEquipment);
+      filterEquipment();
+      root.querySelector('[data-set-select]').addEventListener('change', (ev) => {
+        try {
+          capture();
+          this.selectedId = ev.target.value;
+          this.draft = clone(this.store.sets.find((set) => set.id === this.selectedId).profile);
+          this.updateLocations();
+          this.render(false);
+        } catch (err) {
+          ev.target.value = this.selectedId;
+          error(err.message);
+        }
+      });
       root.addEventListener('change', (ev) => {
+        if (ev.target.matches('[data-equipment-choice]')) {
+          if (ev.target.checked) this.pickerSelection.add(ev.target.value);
+          else this.pickerSelection.delete(ev.target.value);
+        }
         if (ev.target.matches('[data-field="allLocations"], [data-cover]'))
           updateCoverage(ev.target.closest('.armour-layer'));
       });
@@ -170,7 +260,7 @@ export function createEditorClass(Base) {
               throw new Error('You no longer have permission to export this actor’s armour.');
             downloadSetup(
               exportSetup(this.readForm(root)),
-              setupFilename(this.actor.name),
+              setupFilename(`${this.actor.name}-${root.querySelector('[data-set-name]').value}`),
               root.ownerDocument,
             );
           } catch (err) {
@@ -183,8 +273,90 @@ export function createEditorClass(Base) {
         if (action === 'save') return this.save(root, error);
         try {
           // Retain current field values before structural changes.
-          this.draft = this.readForm(root);
+          capture();
+          if (action.startsWith('set-')) {
+            if (action === 'set-active') this.store.activeId = this.selectedId;
+            if (action === 'set-new' || action === 'set-copy') {
+              if (this.store.sets.length >= 30) throw new Error('Use at most 30 armour sets.');
+              let n = 1,
+                name;
+              do {
+                name = `${action === 'set-copy' ? 'Copy' : 'New set'} ${n++}`;
+              } while (
+                this.store.sets.some((set) => set.name.toLowerCase() === name.toLowerCase())
+              );
+              const id = foundry.utils.randomID?.() ?? Math.random().toString(36).slice(2);
+              const profile =
+                action === 'set-copy'
+                  ? clone(this.draft)
+                  : { schema: 1, enabled: false, layers: [] };
+              this.store.sets.push({ id, name, profile });
+              this.selectedId = id;
+              this.draft = clone(profile);
+            }
+            if (action === 'set-delete' && this.store.sets.length > 1) {
+              this.store.sets = this.store.sets.filter((set) => set.id !== this.selectedId);
+              if (this.store.activeId === this.selectedId)
+                this.store.activeId = this.store.sets[0].id;
+              this.selectedId = this.store.activeId;
+              this.draft = clone(this.store.sets.find((set) => set.id === this.selectedId).profile);
+            }
+            this.updateLocations();
+            this.render(false);
+            return;
+          }
+          if (action === 'equipment-refresh') {
+            this.equipment = equipmentOn(this.actor);
+            this.render(false);
+            return;
+          }
+          if (action === 'equipment-add') {
+            if (!this.pickerSelection.size) throw new Error('Tick equipment to add first.');
+            const current = equipmentOn(this.actor);
+            const records = [...this.pickerSelection].map((key) =>
+              current.find((record) => record.key === key),
+            );
+            if (records.some((record) => !record))
+              throw new Error(
+                'Selected equipment is no longer available. Refresh the equipment list.',
+              );
+            const additions = records
+              .filter(
+                (record) => !this.draft.layers.some((layer) => layer.source?.key === record.key),
+              )
+              .map((record) => layerFromEquipment(record, this.actor));
+            if (!additions.length)
+              throw new Error('Those equipment items are already in this set.');
+            const next = validateProfile({
+              ...this.draft,
+              enabled: true,
+              layers: [...this.draft.layers, ...additions],
+            });
+            this.draft = next;
+            this.equipment = current;
+            this.pickerSelection.clear();
+            this.updateLocations();
+            this.render(false);
+            return;
+          }
           const index = Number(button.closest('[data-index]')?.dataset.index);
+          if (action === 'source-refresh') {
+            const current = equipmentOn(this.actor);
+            const record = current.find(
+              (record) => record.key === this.draft.layers[index]?.source?.key,
+            );
+            if (!record)
+              throw new Error(
+                'The source equipment is unavailable. Your saved values are retained.',
+              );
+            const replacement = layerFromEquipment(record, this.actor);
+            replacement.enabled = this.draft.layers[index].enabled;
+            const next = clone(this.draft);
+            next.layers[index] = replacement;
+            this.draft = validateProfile(next);
+            this.equipment = current;
+            this.updateLocations();
+          }
           if (action === 'add') {
             this.draft.layers.push(newLayer(this.locations));
             this.draft.enabled = true;
@@ -205,6 +377,19 @@ export function createEditorClass(Base) {
           error(err.message);
         }
       });
+    }
+    updateLocations() {
+      this.locations = [
+        ...new Set([
+          ...locationsOf(this.actor),
+          ...this.draft.layers.flatMap((layer) => layer.locations.map((loc) => loc.where)),
+        ]),
+      ];
+    }
+    async close(...args) {
+      this.hideHelp?.();
+      this.closed = true;
+      return super.close(...args);
     }
     async importFile(root, error) {
       if (this.importing || this.saving) return;
@@ -227,6 +412,7 @@ export function createEditorClass(Base) {
         const imported = importSetup(await file.text());
         if (!canEdit(this.actor, game.user))
           throw new Error('You no longer have permission to import armour for this actor.');
+        if (this.closed) return;
         this.draft = imported;
         this.locations = [
           ...new Set([
@@ -251,14 +437,18 @@ export function createEditorClass(Base) {
           throw new Error('You no longer have permission to edit this actor.');
         const value = this.readForm(root);
         if (!this.temporary) {
-          if (JSON.stringify(readProfile(this.actor)) !== this.original)
+          if (JSON.stringify(readStore(this.actor)) !== this.original)
             throw new Error(
               'Armour changed since this window opened. Cancel and reopen to load the current actor data.',
             );
-          await this.actor.setFlag(ID, 'profile', value);
-          this.original = JSON.stringify(readProfile(this.actor));
+          const selected = this.store.sets.find((set) => set.id === this.selectedId);
+          selected.profile = value;
+          selected.name = root.querySelector('[data-set-name]').value.trim();
+          const store = normaliseStore(this.store);
+          await this.actor.setFlag(ID, 'profile', store);
+          this.original = JSON.stringify(readStore(this.actor));
         }
-        await this.onSave?.(clone(value));
+        await this.onSave?.(this.temporary ? clone(value) : readProfile(this.actor));
         ui.notifications.info(
           this.temporary
             ? 'Armour changes set for this ADD only.'

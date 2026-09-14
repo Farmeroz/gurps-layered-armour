@@ -5,7 +5,7 @@ import Handlebars from 'handlebars';
 import { parseHTML } from 'linkedom';
 import { createEditorClass } from '../scripts/editor.mjs';
 import { createMenus, actorForRow, tokenFor } from '../scripts/menus.mjs';
-import { emptyProfile, newLayer, ID } from '../scripts/core.mjs';
+import { emptyProfile, newLayer, ID, readProfile, stackFor } from '../scripts/core.mjs';
 Handlebars.registerHelper('checked', (value) => (value ? 'checked' : ''));
 Handlebars.registerHelper('disabled', (value) => (value ? 'disabled' : ''));
 const template = Handlebars.compile(
@@ -338,5 +338,107 @@ test('import rechecks permissions and preserves save conflict protection', async
   a.setStored(profile({ ...newLayer(['Torso']), dr: 50 }));
   await e.save(form(e).root, (m) => errors.push(m));
   assert.match(errors.pop(), /changed since/);
+  assert.equal(a.writes, 0);
+});
+
+function click(view, action) {
+  view.root
+    .querySelector(`[data-action="${action}"]`)
+    .dispatchEvent(new view.window.Event('click', { bubbles: true }));
+}
+test('named sets keep separate draft edits, active choice and source actor data through save and reopen', async () => {
+  const a = actor();
+  a.setStored(profile({ ...newLayer(['Torso']), dr: 8 }));
+  const e = new Editor(a);
+  let view = form(e);
+  view.root.querySelector('[data-field="dr"]').value = '9';
+  click(view, 'set-copy');
+  assert.equal(e.store.sets.length, 2);
+  assert.equal(e.store.activeId, 'default');
+  assert.equal(e.draft.layers[0].dr, 9);
+  view = form(e);
+  view.root.querySelector('[data-set-name]').value = 'Combat';
+  view.root.querySelector('[data-field="dr"]').value = '20';
+  click(view, 'set-active');
+  assert.equal(a.writes, 0);
+  assert.equal(readProfile(a).layers[0].dr, 8);
+  assert.equal(e.store.sets[0].profile.layers[0].dr, 9);
+  await e.save(form(e).root, assert.fail);
+  assert.equal(a.writes, 1);
+  assert.equal(readProfile(a).layers[0].dr, 20);
+  const reopened = new Editor(a);
+  assert.equal(reopened.getData().activeName, 'Combat');
+  view = form(reopened);
+  click(view, 'set-delete');
+  assert.equal(reopened.store.sets.length, 1);
+  assert.equal(reopened.draft.layers[0].dr, 9);
+  await reopened.close();
+  assert.equal(new Editor(a).store.sets.length, 2);
+});
+test('equipment picker creates reviewable layers; blank DR cannot be approved and refresh never silently overwrites', async () => {
+  const a = actor();
+  a.system.equipment = {
+    carried: { a: { name: 'Vest', uuid: 'vest', location: 'Torso', equipped: true } },
+  };
+  const before = JSON.stringify(a.system),
+    e = new Editor(a);
+  let view = form(e);
+  const choice = view.root.querySelector('[data-equipment-choice]');
+  choice.checked = true;
+  choice.dispatchEvent(new view.window.Event('change', { bubbles: true }));
+  click(view, 'equipment-add');
+  assert.equal(e.draft.layers.length, 1);
+  assert.equal(e.draft.layers[0].dr, null);
+  view = form(e);
+  assert.match(view.root.textContent, /Needs review/);
+  assert.equal(view.root.querySelector('[data-field="dr"]').value, '');
+  view.root.querySelector('[data-field="review"]').checked = true;
+  view.root.querySelector('[data-location="Torso"] [data-cover]').checked = true;
+  const errors = [];
+  await e.save(view.root, (m) => errors.push(m));
+  assert.match(errors.pop(), /DR must be a whole number/);
+  assert.equal(a.writes, 0);
+  view.root.querySelector('[data-field="dr"]').value = '7';
+  await e.save(view.root, assert.fail);
+  assert.equal(stackFor(readProfile(a), 'Torso', 'cr').rawDR, 7);
+  assert.equal(JSON.stringify(a.system), before);
+  a.system.equipment.carried.a.dr = 10;
+  const reopened = new Editor(a);
+  view = form(reopened);
+  assert.match(view.root.textContent, /Equipment changed/);
+  assert.equal(reopened.draft.layers[0].dr, 7);
+  click(view, 'equipment-refresh');
+  assert.equal(reopened.draft.layers[0].dr, 7);
+  click(form(reopened), 'source-refresh');
+  assert.equal(reopened.draft.layers[0].dr, 10);
+  assert.equal(reopened.draft.layers[0].reviewRequired, true);
+  assert.equal(readProfile(a).layers[0].dr, 7);
+  await reopened.close();
+});
+test('module editor controls all have contextual help, including the temporary Save action', () => {
+  const a = actor();
+  a.setStored(profile(newLayer(['Torso'])));
+  const e = new Editor(a, { temporary: true }),
+    { root } = form(e);
+  for (const control of root.querySelectorAll('button,input,select,summary'))
+    assert.ok(control.dataset.help, control.outerHTML);
+  assert.match(root.querySelector('[data-action="save"]').dataset.help, /this ADD only/);
+});
+test('set chooser preserves draft edits without activating the selection', () => {
+  const a = actor();
+  a.setStored(profile({ ...newLayer(['Torso']), dr: 2 }));
+  const e = new Editor(a);
+  click(form(e), 'set-copy');
+  const copiedId = e.selectedId,
+    view = form(e);
+  view.root.querySelector('[data-field="dr"]').value = '15';
+  const select = view.root.querySelector('[data-set-select]');
+  for (const option of select.querySelectorAll('option')) option.removeAttribute('selected');
+  select.querySelector('option[value="default"]').setAttribute('selected', '');
+  select.dispatchEvent(new view.window.Event('change', { bubbles: true }));
+  assert.equal(e.selectedId, 'default');
+  assert.equal(e.store.activeId, 'default');
+  assert.equal(e.draft.layers[0].dr, 2);
+  assert.equal(e.store.sets.find((set) => set.id === copiedId).profile.layers[0].dr, 15);
   assert.equal(a.writes, 0);
 });
