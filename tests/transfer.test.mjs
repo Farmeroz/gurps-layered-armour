@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { parseHTML } from 'linkedom';
 import { ID, newLayer, validateProfile } from '../scripts/core.mjs';
 import {
   exportSetup,
@@ -89,6 +90,7 @@ test('download uses a JSON Blob and cleans up the temporary link and URL', async
     cleanup,
     revoked;
   const anchor = {
+    addEventListener() {},
     click() {
       clicked = true;
     },
@@ -128,4 +130,61 @@ test('download uses a JSON Blob and cleans up the temporary link and URL', async
   assert.equal(await payload.text(), text);
   cleanup();
   assert.equal(revoked, 'blob:test');
+});
+
+test('export delegates exact JSON and filename to Foundry without creating a page link', () => {
+  const previous = globalThis.foundry;
+  const calls = [];
+  globalThis.foundry = { utils: { saveDataToFile: (...args) => calls.push(args) } };
+  try {
+    const text = exportSetup(setup());
+    downloadSetup(text, 'combat-armour-layers.json', {
+      createElement() {
+        assert.fail('Native export must not create a page link.');
+      },
+    });
+    assert.deepEqual(calls, [[text, 'application/json', 'combat-armour-layers.json']]);
+  } finally {
+    globalThis.foundry = previous;
+  }
+});
+
+test('fallback download does not reach delegated link handlers or cancel the download action', () => {
+  const { document, window } = parseHTML('<html><body></body></html>');
+  let navigations = 0,
+    link,
+    cancelled,
+    cleanup;
+  document.body.addEventListener('click', (event) => {
+    if (event.target.closest('a')) {
+      navigations++;
+      event.preventDefault();
+    }
+  });
+  const facade = {
+    defaultView: {
+      Blob,
+      URL: { createObjectURL: () => 'blob:armour', revokeObjectURL() {} },
+      setTimeout: (fn) => {
+        cleanup = fn;
+      },
+    },
+    body: document.body,
+    createElement() {
+      link = document.createElement('a');
+      link.click = () => {
+        const event = new window.Event('click', { bubbles: true, cancelable: true });
+        link.dispatchEvent(event);
+        cancelled = event.defaultPrevented;
+      };
+      return link;
+    },
+  };
+  downloadSetup(exportSetup(setup()), 'combat.json', facade);
+  assert.equal(navigations, 0);
+  assert.equal(cancelled, false);
+  assert.equal(link.download, 'combat.json');
+  assert.equal(link.target, '_self');
+  assert.equal(link.isConnected, false);
+  cleanup();
 });

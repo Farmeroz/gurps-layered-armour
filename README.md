@@ -1,4 +1,4 @@
-# GURPS Layered Armour 0.2.0
+# GURPS Layered Armour 0.2.1
 
 A separate Foundry VTT module with a player-facing **Armour Layers** window. It saves ordered armour on an actor and supplies layered DR to GGA's normal Apply Damage Dialog (ADD), including the ADD opened by GURPS Manual Damage.
 
