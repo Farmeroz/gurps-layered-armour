@@ -1,3 +1,4 @@
+import { createHelpController, helpResolver } from './tooltip-engine.mjs';
 import { ID } from './core.mjs';
 const help = {
   saved: 'Edit and save the actor’s armour sets.',
@@ -32,103 +33,54 @@ const help = {
   review:
     'Confirm you have checked the DR, locations, Hardened level and flexible/rigid status. Unreviewed active layers block injury calculation.',
 };
-export function helpEnabled() {
-  try {
-    return globalThis.game?.settings?.get(ID, 'helpTooltips') !== false;
-  } catch {
-    return true;
-  }
+
+const fallback = helpResolver({ id: ID });
+function resolve(node, original) {
+  if (node.matches('.context-item:has(.armour-menu-icon)'))
+    return 'Open this actor’s saved armour sets and layer editor.';
+  const action = node.dataset.action ?? node.dataset.edit;
+  const field = node.dataset.field;
+  const message =
+    node.dataset.help ??
+    (action === 'save' && node.closest('[data-temporary]')?.dataset.temporary === 'true'
+      ? 'Use the displayed set for this ADD only. Saved actor sets remain unchanged.'
+      : help[action]) ??
+    help[field] ??
+    (node.matches('[data-use-layers]')
+      ? 'Use saved layered DR, or switch off to review the hit using native ADD armour controls.'
+      : node.matches('[data-cover]')
+        ? 'Tick to include this location, or enable its override when every location is covered.'
+        : node.matches('[data-dr]')
+          ? 'DR for this location. Blank inherits the layer default.'
+          : node.matches('[data-split]')
+            ? help.split
+            : node.matches('[data-profile-enabled]')
+              ? 'Enable this set’s layered protection. Covered locations replace sheet DR.'
+              : node.matches('[data-import-file]')
+                ? 'Choose a JSON file exported by Armour Layers.'
+                : node.matches('summary')
+                  ? 'Expand or collapse this section.'
+                  : '');
+
+  return message || fallback(node, original);
 }
+export const helpController = createHelpController({
+  id: ID,
+  scope:
+    '#context-menu .context-item:has(.armour-menu-icon), .armour-layer-hud, .gurps-layered-armour, .armour-add-panel, .armour-add, [name^="gurps-layered-armour."]',
+  resolve,
+});
+export const helpEnabled = helpController.enabled;
 export function attachHelp(root) {
-  if (!root?.querySelectorAll) return;
-  let bubble, timer;
-  const hide = () => {
-    clearTimeout(timer);
-    if (bubble) {
-      const target = root.querySelector('[data-armour-described]');
-      if (target) {
-        const ids = (target.getAttribute('aria-describedby') ?? '')
-          .split(' ')
-          .filter((id) => id !== bubble.id);
-        if (ids.length) target.setAttribute('aria-describedby', ids.join(' '));
-        else target.removeAttribute('aria-describedby');
-        target.removeAttribute('data-armour-described');
-      }
-      bubble.remove();
-      bubble = null;
-    }
-  };
-  for (const node of root.querySelectorAll('button, input, select, summary, [data-help]')) {
-    const action = node.dataset.action ?? node.dataset.edit;
-    const field = node.dataset.field;
-    const message =
-      node.dataset.help ??
-      (action === 'save' && root.dataset.temporary === 'true'
-        ? 'Use the displayed set for this ADD only. Saved actor sets remain unchanged.'
-        : help[action]) ??
-      help[field] ??
-      (node.matches('[data-use-layers]')
-        ? 'Use saved layered DR, or switch off to review the hit using native ADD armour controls.'
-        : node.matches('[data-cover]')
-          ? 'Tick to include this location, or enable its override when every location is covered.'
-          : node.matches('[data-dr]')
-            ? 'DR for this location. Blank inherits the layer default.'
-            : node.matches('[data-split]')
-              ? help.split
-              : node.matches('[data-profile-enabled]')
-                ? 'Enable this set’s layered protection. Covered locations replace sheet DR.'
-                : node.matches('[data-import-file]')
-                  ? 'Choose a JSON file exported by Armour Layers.'
-                  : node.matches('summary')
-                    ? 'Expand or collapse this section.'
-                    : '');
-    if (!message) continue;
-    node.dataset.help = message;
-    node.removeAttribute('title');
-    node.removeAttribute('data-tooltip');
-    if (node.dataset.armourHelpBound) continue;
-    node.dataset.armourHelpBound = 'true';
-    const show = () => {
-      hide();
-      if (!helpEnabled()) return;
-      timer = setTimeout(() => {
-        if (!node.isConnected || !helpEnabled()) return;
-        const doc = root.ownerDocument;
-        bubble = doc.createElement('div');
-        bubble.className = 'armour-help-tooltip';
-        bubble.setAttribute('role', 'tooltip');
-        bubble.id = `armour-help-${Math.random().toString(36).slice(2)}`;
-        bubble.textContent = node.dataset.help;
-        doc.body.append(bubble);
-        const rect = node.getBoundingClientRect();
-        bubble.style.left = `${Math.max(8, Math.min(rect.left, doc.documentElement.clientWidth - 320))}px`;
-        bubble.style.top = `${Math.max(8, Math.min(rect.bottom + 6, doc.documentElement.clientHeight - bubble.offsetHeight - 8))}px`;
-        node.setAttribute(
-          'aria-describedby',
-          [node.getAttribute('aria-describedby'), bubble.id].filter(Boolean).join(' '),
-        );
-        node.dataset.armourDescribed = 'true';
-      }, 450);
-    };
-    node.addEventListener('mouseenter', show);
-    node.addEventListener('focus', show);
-    node.addEventListener('mouseleave', hide);
-    node.addEventListener('blur', hide);
+  root = root?.nodeType ? root : root?.[0];
+  for (const node of root?.querySelectorAll?.('button, input, select, summary, [data-help]') ??
+    []) {
+    const message = resolve(node, node.getAttribute('title') || '');
+    if (message) node.dataset.help = message;
   }
-  root.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') hide();
-  });
-  root.addEventListener('click', hide);
-  root.addEventListener('scroll', hide, true);
-  return hide;
+  return helpController.attach(root);
 }
 export function registerHelpSetting() {
-  game.settings.register(ID, 'helpTooltips', {
-    name: 'Show help tooltips',
-    hint: 'Show short explanations on Armour Layers controls. This preference applies only to this client.',
-    scope: 'client',
-    config: true,
-    type: Boolean,
-    default: true,
-  });
+  helpController.register();
+  globalThis.Hooks?.once('ready', () => helpController.start());
 }

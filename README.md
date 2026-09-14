@@ -1,4 +1,4 @@
-# GURPS Layered Armour 0.2.1
+# GURPS Layered Armour 0.2.2
 
 A separate Foundry VTT module with a player-facing **Armour Layers** window. It saves ordered armour on an actor and supplies layered DR to GGA's normal Apply Damage Dialog (ADD), including the ADD opened by GURPS Manual Damage.
 
@@ -22,7 +22,7 @@ An equipment-derived layer retains its source link. Reopening the editor or usin
 
 ## Help tooltips
 
-Hover over a control or focus it with the keyboard for a short explanation. Press Escape to dismiss it. Help is enabled by default; turn off **Show help tooltips** under **Configure Settings → Module Settings → GURPS Layered Armour** to disable it on your client. This does not change other players' preference or remove labels.
+Hover over a control or focus it with the keyboard for a short explanation. Press Escape to dismiss it. Help is enabled by default; turn off **Show help tooltips** under **Configure Settings → Module Settings → GURPS Layered Armour** to disable it on your client. Changing the preference takes effect immediately. This does not change other players' preference or remove labels. Tooltips close when their window closes or its controls are replaced.
 
 ## Export and import
 
