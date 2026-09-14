@@ -72,6 +72,11 @@ export function setupFilename(name) {
   return `${safe || 'actor'}-armour-layers.json`;
 }
 export function downloadSetup(text, filename, document) {
+  // Let Foundry manage downloads in its browser and desktop clients.
+  const utils = globalThis.foundry?.utils;
+  if (typeof utils?.saveDataToFile === 'function') {
+    return utils.saveDataToFile(text, 'application/json', filename);
+  }
   const view = document.defaultView ?? globalThis;
   const url = view.URL.createObjectURL(
     new view.Blob([text], { type: 'application/json;charset=utf-8' }),
@@ -79,7 +84,11 @@ export function downloadSetup(text, filename, document) {
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = filename;
+  anchor.target = '_self';
   anchor.hidden = true;
+  // Keep the fallback click out of delegated hyperlink handlers without
+  // cancelling the browser's default download action.
+  anchor.addEventListener('click', (event) => event.stopPropagation());
   document.body.append(anchor);
   try {
     anchor.click();
