@@ -10,6 +10,7 @@
   "scripts/log.mjs",
   "scripts/main.mjs",
   "scripts/menus.mjs",
+  "scripts/tooltip-engine.mjs",
   "scripts/transfer.mjs",
   "styles/armour.css",
   "templates/editor.hbs"

@@ -28,7 +28,7 @@ test('hover and focus show escaped help; Escape, blur and cleanup remove it; dis
   await new Promise((resolve) => setTimeout(resolve, 480));
   assert.equal(document.querySelector('[role="tooltip"]').textContent, 'Use <armour> safely');
   assert.equal(document.querySelector('armour'), null);
-  assert.match(button.getAttribute('aria-describedby'), /^existing armour-help-/);
+  assert.match(button.getAttribute('aria-describedby'), /^existing gurps-layered-armour-help-/);
   const escape = new window.Event('keydown', { bubbles: true });
   escape.key = 'Escape';
   button.dispatchEvent(escape);
