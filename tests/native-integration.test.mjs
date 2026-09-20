@@ -150,6 +150,17 @@ if (!source || !manual) {
   const NativeADD = load('module/damage/applydamage.js', 'ApplyDamageDialog');
   // Foundry/jQuery's native event wiring is outside this DOM harness.
   NativeADD.prototype.activateListeners = function () {};
+  GURPS.ApplyDamageDialog = NativeADD;
+  globalThis.libWrapper = {
+    register(_id, target, fn, type) {
+      assert.equal(type, 'WRAPPER');
+      const method = target.split('.').at(-1),
+        previous = NativeADD.prototype[method];
+      NativeADD.prototype[method] = function (...args) {
+        return fn.call(this, previous.bind(this), ...args);
+      };
+    },
+  };
   patchADD(NativeADD, async () => {});
   const Manual = createManualDialogClass(NativeADD);
   function actor(id, dr = 4) {

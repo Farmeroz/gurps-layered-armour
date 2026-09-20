@@ -129,3 +129,7 @@ Updates confined to actor system data do not alter these module flags. A charact
 Report problems through [GitHub Issues](https://github.com/Farmeroz/gurps-layered-armour/issues). Released under the [MIT licence](LICENSE).
 
 GURPS is a trademark of Steve Jackson Games. This unofficial module is not affiliated with or endorsed by Steve Jackson Games, Foundry Gaming LLC, or the GURPS Game Aid maintainers.
+
+## Vitality Reserve compatibility
+
+Version 0.2.3 uses libWrapper for ADD integration. Enable libWrapper alongside this module. Use GGA Vitality Reserve 0.1.1 or later when combining them: armour review runs before VR routing, and the VR result retains the armour audit.

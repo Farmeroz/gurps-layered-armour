@@ -158,10 +158,16 @@ export function patchADD(NativeADD, openEditor) {
   for (const method of ['getData', 'activateListeners', 'resolveInjury', '_renderTemplate']) {
     if (typeof proto[method] !== 'function') throw new Error(`GGA ADD is missing ${method}.`);
   }
-  const nativeGetData = proto.getData,
-    nativeListeners = proto.activateListeners;
-  const nativeResolve = proto.resolveInjury;
-  proto.getData = async function (...args) {
+  if (!globalThis.libWrapper?.register)
+    throw new Error('Armour Layers ADD integration requires libWrapper.');
+  const register = (method, fn) =>
+    libWrapper.register(
+      'gurps-layered-armour',
+      `GURPS.ApplyDamageDialog.prototype.${method}`,
+      fn,
+      'WRAPPER',
+    );
+  register('getData', async function (wrapped, ...args) {
     const state = stateFor(this);
     if (report(state).stack || report(state).error) {
       this.isSimpleDialog = false;
@@ -171,10 +177,10 @@ export function patchADD(NativeADD, openEditor) {
         state.expanded = true;
       }
     }
-    return nativeGetData.apply(this, args);
-  };
-  proto.activateListeners = function (html) {
-    const result = nativeListeners.call(this, html);
+    return wrapped(...args);
+  });
+  register('activateListeners', function (wrapped, html) {
+    const result = wrapped(html);
     const state = stateFor(this),
       root = elementOf(html);
     root.querySelector('.armour-add-panel')?.remove();
@@ -237,8 +243,8 @@ export function patchADD(NativeADD, openEditor) {
     this._armourHideHelp?.();
     this._armourHideHelp = attachHelp(panel);
     return result;
-  };
-  proto.resolveInjury = async function (keepOpen, injury, publicly, results = null) {
+  });
+  register('resolveInjury', async function (wrapped, keepOpen, injury, publicly, results = null) {
     const state = stateFor(this);
     if (results !== null) {
       const error = reviewError(state);
@@ -255,8 +261,8 @@ export function patchADD(NativeADD, openEditor) {
         results = holder.innerHTML + reportHTML(state);
       }
     }
-    return nativeResolve.call(this, keepOpen, injury, publicly, results);
-  };
+    return wrapped(keepOpen, injury, publicly, results);
+  });
   // Manual Damage renders a fresh native results table immediately before apply.
   // resolveInjury above attaches its matching armour audit inside the same chat
   // message, inheriting native public/quiet recipient permissions.
