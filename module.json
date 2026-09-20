@@ -2,7 +2,7 @@
   "id": "gurps-layered-armour",
   "title": "GURPS Layered Armour",
   "description": "A standalone actor Armour Layers editor with persistent, location-specific DR and per-layer Hardened support in GGA's Apply Damage Dialog.",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "authors": [
     {
       "name": "Phil Brown",
@@ -22,13 +22,19 @@
           "verified": "0.18.23"
         }
       }
+    ],
+    "requires": [
+      {
+        "id": "lib-wrapper",
+        "type": "module"
+      }
     ]
   },
   "esmodules": ["scripts/main.mjs"],
   "styles": ["styles/armour.css"],
   "url": "https://github.com/Farmeroz/gurps-layered-armour",
   "manifest": "https://github.com/Farmeroz/gurps-layered-armour/releases/latest/download/module.json",
-  "download": "https://github.com/Farmeroz/gurps-layered-armour/releases/download/v0.2.2/gurps-layered-armour-v0.2.2.zip",
+  "download": "https://github.com/Farmeroz/gurps-layered-armour/releases/download/v0.2.3/gurps-layered-armour-v0.2.3.zip",
   "readme": "README.md",
   "license": "LICENSE"
 }
