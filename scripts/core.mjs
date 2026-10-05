@@ -248,8 +248,9 @@ export function stackFor(
   let exactTotal = 0,
     rawTotal = 0;
   const rows = profile.layers
-    .filter((layer) => layer.enabled && covers(layer, where))
-    .map((layer) => {
+    .map((layer, layerIndex) => ({ layer, layerIndex }))
+    .filter(({ layer }) => layer.enabled && covers(layer, where))
+    .map(({ layer, layerIndex }) => {
       const configuredDR = layerDR(layer, where, type);
       const condition =
         layer.resourceId && Object.hasOwn(conditions, layer.resourceId)
@@ -265,6 +266,8 @@ export function stackFor(
       // Round the combined protection once. Cumulative differences allocate the
       // rounded points in outside-to-inside order without losing DR per layer.
       return {
+        layerKey: `layer:${layerIndex}`,
+        layerIndex,
         name: layer.name,
         kind: layer.kind,
         flexible: layer.flexible,
@@ -285,6 +288,8 @@ export function stackFor(
   if (rawTotal === 0 && divisor < 1 && divisor > 0) {
     effectiveDR = Math.floor(1 / divisor);
     rows.push({
+      layerKey: 'bare-dr-zero',
+      layerIndex: Number.MAX_SAFE_INTEGER,
       name: 'DR 0 vs fractional divisor (B379)',
       kind: 'natural',
       flexible: false,
@@ -297,6 +302,92 @@ export function stackFor(
   }
   return { rows, rawDR: rawTotal, effectiveDR };
 }
+export function scalarStackFor(dr, divisor = 1, multiplier = 1, name = 'Sheet DR') {
+  dr = number(dr, name);
+  if (!(divisor > 0 || divisor === -1) || !Number.isFinite(divisor))
+    throw new Error('Invalid armour divisor.');
+  if (!Number.isFinite(multiplier) || multiplier < 1)
+    throw new Error('Invalid damage multiplier.');
+  let effectiveDR = divisor === -1 ? 0 : Math.floor((dr * multiplier) / divisor);
+  const rows = [
+    {
+      layerKey: `native:${name}`,
+      layerIndex: Number.MAX_SAFE_INTEGER,
+      name,
+      kind: 'natural',
+      flexible: false,
+      hardened: 0,
+      depletion: 'none',
+      resourceId: '',
+      configuredDR: dr,
+      condition: null,
+      dr,
+      divisor,
+      protectionFactor: 1,
+      exact: divisor === -1 ? 0 : (dr * multiplier) / divisor,
+      effective: effectiveDR,
+    },
+  ];
+  if (dr === 0 && divisor < 1 && divisor > 0) {
+    effectiveDR = Math.floor(1 / divisor);
+    rows[0].exact = effectiveDR;
+    rows[0].effective = effectiveDR;
+  }
+  return { rows, rawDR: dr, effectiveDR };
+}
+
+export function largeAreaStackFor(torsoStack, weakestStack, weakestLocation = '') {
+  if (!torsoStack || !weakestStack) throw new Error('Large-area DR requires torso and exposed DR.');
+  const torso = new Map(torsoStack.rows.map((row) => [row.layerKey ?? row.name, row]));
+  const weak = new Map(weakestStack.rows.map((row) => [row.layerKey ?? row.name, row]));
+  const keys = [...new Set([...torso.keys(), ...weak.keys()])];
+  const seed = keys
+    .map((key) => {
+      const a = torso.get(key),
+        b = weak.get(key),
+        source = a ?? b;
+      return {
+        key,
+        source,
+        layerIndex: Math.min(
+          a?.layerIndex ?? Number.MAX_SAFE_INTEGER,
+          b?.layerIndex ?? Number.MAX_SAFE_INTEGER,
+        ),
+        dr: ((a?.dr ?? 0) + (b?.dr ?? 0)) / 2,
+        configuredDR: ((a?.configuredDR ?? 0) + (b?.configuredDR ?? 0)) / 2,
+      };
+    })
+    .sort((a, b) => a.layerIndex - b.layerIndex);
+  let rawExact = 0,
+    exactTotal = 0;
+  const rows = seed.map(({ key, source, layerIndex, dr, configuredDR }) => {
+    const rawBefore = Math.ceil(rawExact - 1e-9);
+    rawExact += dr;
+    const rawAllocated = Math.ceil(rawExact - 1e-9) - rawBefore;
+    const divisor = source.divisor;
+    const exact = divisor === -1 ? 0 : (dr * (source.protectionFactor ?? 1)) / divisor;
+    const before = Math.floor(exactTotal + 1e-9);
+    exactTotal += exact;
+    return {
+      ...source,
+      layerKey: key,
+      layerIndex,
+      configuredDR,
+      dr,
+      largeAreaAllocatedDR: rawAllocated,
+      exact,
+      effective: Math.floor(exactTotal + 1e-9) - before,
+    };
+  });
+  return {
+    rows,
+    rawDR: Math.ceil(rawExact - 1e-9),
+    effectiveDR: Math.floor(exactTotal + 1e-9),
+    largeArea: true,
+    weakestLocation,
+  };
+}
+
 export function traceDamage(stack, damage, type) {
   let remaining = damage,
     flexIncoming = null,
