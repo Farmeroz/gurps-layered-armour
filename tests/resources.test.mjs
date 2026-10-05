@@ -65,7 +65,11 @@ test('tracker sync preserves existing armour loss when maximum DR changes', () =
     depletion: 'semi-ablative',
     resourceId: 'vest',
   };
-  const store = { schema: 2, activeId: 'default', sets: [{ id: 'default', name: 'Default', profile: profile(armour) }] };
+  const store = {
+    schema: 2,
+    activeId: 'default',
+    sets: [{ id: 'default', name: 'Default', profile: profile(armour) }],
+  };
   const update = trackerSyncUpdate(a, store);
   assert.equal(update['system.additionalresources.tracker.0000'].max, 14);
   assert.equal(update['system.additionalresources.tracker.0000'].value, 9);
@@ -83,7 +87,12 @@ test('condition reader and depletion plan use resource IDs', () => {
   assert.deepEqual(readArmourConditions(a), { vest: 9 });
   assert.deepEqual(
     depletionPlan([
-      { rows: [{ resourceId: 'vest', depletionLoss: 2 }, { resourceId: '', depletionLoss: 4 }] },
+      {
+        rows: [
+          { resourceId: 'vest', depletionLoss: 2 },
+          { resourceId: '', depletionLoss: 4 },
+        ],
+      },
       { rows: [{ resourceId: 'vest', depletionLoss: 1 }] },
     ]),
     { vest: 3 },
