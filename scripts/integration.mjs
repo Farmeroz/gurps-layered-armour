@@ -92,14 +92,7 @@ export function report(state) {
     const conditions = { ...initialConditions };
     const sequence = [];
     for (const [index, child] of calc._calculators.entries()) {
-      const stack = stackFor(
-        profile,
-        location,
-        calc.damageType,
-        divisor,
-        multiplier,
-        conditions,
-      );
+      const stack = stackFor(profile, location, calc.damageType, divisor, multiplier, conditions);
       if (!stack) {
         if (!sequence.length)
           return { status: `No layers cover ${calc.hitLocation}. The ADD uses normal sheet DR.` };
@@ -122,7 +115,7 @@ export function report(state) {
       });
     }
     const selected =
-      calc.viewId === 'all' ? sequence[0] : sequence[Number(calc.viewId)] ?? sequence[0];
+      calc.viewId === 'all' ? sequence[0] : (sequence[Number(calc.viewId)] ?? sequence[0]);
     return selected
       ? {
           stack: selected.stack,
@@ -324,7 +317,10 @@ export function patchADD(NativeADD, openEditor) {
       try {
         await applyDepletion(this.actor, depletion, expected);
       } catch (error) {
-        console.error('gurps-layered-armour | Injury applied but armour condition update failed.', error);
+        console.error(
+          'gurps-layered-armour | Injury applied but armour condition update failed.',
+          error,
+        );
         ui.notifications.error(
           `Injury was applied, but armour condition could not be updated: ${error.message} Adjust the armour Resource Tracker manually; do not reapply injury.`,
         );
