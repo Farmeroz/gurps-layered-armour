@@ -89,18 +89,10 @@ test('shotgun multiplier applies to DR before divisors', () => {
 });
 test('close-range shotgun DR multiplier is consumed by ablative armour for that hit', () => {
   const armour = layer(3, { depletion: 'ablative', resourceId: 'vest' });
-  const first = traceDamage(
-    stackFor(profile(armour), 'Torso', 'pi', 1, 4, { vest: 3 }),
-    10,
-    'pi',
-  );
+  const first = traceDamage(stackFor(profile(armour), 'Torso', 'pi', 1, 4, { vest: 3 }), 10, 'pi');
   assert.equal(first.penetrating, 0);
   assert.equal(first.rows[0].depletionLoss, 10);
-  const second = traceDamage(
-    stackFor(profile(armour), 'Torso', 'pi', 1, 4, { vest: 0 }),
-    10,
-    'pi',
-  );
+  const second = traceDamage(stackFor(profile(armour), 'Torso', 'pi', 1, 4, { vest: 0 }), 10, 'pi');
   assert.equal(second.penetrating, 10);
 });
 
