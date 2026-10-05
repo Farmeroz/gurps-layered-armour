@@ -163,3 +163,21 @@ test('condition trackers reduce all protection values by shared layer degradatio
   assert.equal(conditionedLayerDR(armour, 'Torso', 'cut', 9), 5);
   assert.equal(stackFor(profile(armour), 'Torso', 'cr', 1, 1, { plate: 9 }).rawDR, 7);
 });
+
+
+test('chinks halve layered DR cumulatively with armour divisors', () => {
+  const stack = stackFor(profile(layer(10)), 'Torso', 'pi', 2, 1, {}, 0.5);
+  assert.equal(stack.rawDR, 10);
+  assert.equal(stack.effectiveDR, 2);
+  assert.equal(traceDamage(stack, 10, 'pi').penetrating, 8);
+});
+
+test('ablative loss through chinks equals only damage actually stopped', () => {
+  const armour = layer(10, { depletion: 'ablative', resourceId: 'plate' });
+  const trace = traceDamage(
+    stackFor(profile(armour), 'Torso', 'pi', 2, 1, { plate: 10 }, 0.5),
+    10,
+    'pi',
+  );
+  assert.equal(trace.rows[0].depletionLoss, 2);
+});
