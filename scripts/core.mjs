@@ -307,8 +307,7 @@ export function scalarStackFor(dr, divisor = 1, multiplier = 1, name = 'Sheet DR
   dr = number(dr, name);
   if (!(divisor > 0 || divisor === -1) || !Number.isFinite(divisor))
     throw new Error('Invalid armour divisor.');
-  if (!Number.isFinite(multiplier) || multiplier < 1)
-    throw new Error('Invalid damage multiplier.');
+  if (!Number.isFinite(multiplier) || multiplier < 1) throw new Error('Invalid damage multiplier.');
   let effectiveDR = divisor === -1 ? 0 : Math.floor((dr * multiplier) / divisor);
   const rows = [
     {
