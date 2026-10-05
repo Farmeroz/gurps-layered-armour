@@ -278,6 +278,7 @@ export function stackFor(
         condition,
         dr,
         divisor: effectiveDivisor,
+        multiplier,
         protectionFactor,
         exact,
         effective: Math.floor(exactTotal + 1e-9) - before,
@@ -323,6 +324,7 @@ export function scalarStackFor(dr, divisor = 1, multiplier = 1, name = 'Sheet DR
       condition: null,
       dr,
       divisor,
+      multiplier,
       protectionFactor: 1,
       exact: divisor === -1 ? 0 : (dr * multiplier) / divisor,
       effective: effectiveDR,
@@ -365,7 +367,10 @@ export function largeAreaStackFor(torsoStack, weakestStack, weakestLocation = ''
     rawExact += dr;
     const rawAllocated = Math.ceil(rawExact - 1e-9) - rawBefore;
     const divisor = source.divisor;
-    const exact = divisor === -1 ? 0 : (dr * (source.protectionFactor ?? 1)) / divisor;
+    const exact =
+      divisor === -1
+        ? 0
+        : (dr * (source.multiplier ?? 1) * (source.protectionFactor ?? 1)) / divisor;
     const before = Math.floor(exactTotal + 1e-9);
     exactTotal += exact;
     return {
