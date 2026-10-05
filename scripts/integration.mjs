@@ -25,7 +25,9 @@ function chinksEligible(calc) {
 function largeAreaLocations(actor) {
   const entries = actor.hitLocationsWithDR ?? [];
   const filtered = entries.filter((entry) => !Array.isArray(entry.roll) || entry.roll.length > 0);
-  return [...new Set((filtered.length ? filtered : entries).map((entry) => entry.where).filter(Boolean))];
+  return [
+    ...new Set((filtered.length ? filtered : entries).map((entry) => entry.where).filter(Boolean)),
+  ];
 }
 function sheetDR(actor, where, type) {
   const entries = actor.hitLocationsWithDR ?? [];
@@ -120,7 +122,9 @@ export function report(state) {
     const conditions = { ...initialConditions };
     const allExposed = largeAreaLocations(state.dialog.actor);
     const exposed = largeArea
-      ? (state.exposed ? allExposed.filter((where) => state.exposed.has(where)) : allExposed)
+      ? state.exposed
+        ? allExposed.filter((where) => state.exposed.has(where))
+        : allExposed
       : [];
     if (largeArea && exposed.length < 2) {
       return {
@@ -304,7 +308,11 @@ export function patchADD(NativeADD, openEditor) {
     if (calc.isExplosion && calc.hitLocation !== 'Large-Area') {
       state.preExplosionLocation ??= calc.hitLocation;
       calc.hitLocation = 'Large-Area';
-    } else if (!calc.isExplosion && state.preExplosionLocation && calc.hitLocation === 'Large-Area') {
+    } else if (
+      !calc.isExplosion &&
+      state.preExplosionLocation &&
+      calc.hitLocation === 'Large-Area'
+    ) {
       calc.hitLocation = state.preExplosionLocation;
       state.preExplosionLocation = null;
     }
