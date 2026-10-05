@@ -12,10 +12,16 @@ import { requireConditions, depletionPlan, applyDepletion } from './resources.mj
 
 const states = new WeakMap();
 const patched = Symbol.for('gurps-layered-armour.addPatched');
+function chinksEligible(calc) {
+  return (
+    ['imp', 'pi-', 'pi', 'pi+', 'pi++'].includes(calc.damageType) ||
+    (calc.damageType === 'burn' && calc.damageModifier === 'tbb')
+  );
+}
 export function stateFor(dialog) {
   let state = states.get(dialog);
   if (state) return state;
-  state = { dialog, useLayers: true, override: null };
+  state = { dialog, useLayers: true, override: null, chinks: false };
   states.set(dialog, state);
   const calc = dialog._calculator;
   if (!calc || !Array.isArray(calc._calculators))
@@ -88,11 +94,20 @@ export function report(state) {
     const divisor = !calc.useArmorDivisor || calc.isExplosion ? 1 : calc.armorDivisor || 1;
     const multiplier =
       calc.isShotgun && calc.shotgunRofMultiplier > 1 ? calc.shotgunDamageMultiplier : 1;
+    const protectionFactor = state.chinks && chinksEligible(calc) ? 0.5 : 1;
     const initialConditions = requireConditions(state.dialog.actor, profile);
     const conditions = { ...initialConditions };
     const sequence = [];
     for (const [index, child] of calc._calculators.entries()) {
-      const stack = stackFor(profile, location, calc.damageType, divisor, multiplier, conditions);
+      const stack = stackFor(
+        profile,
+        location,
+        calc.damageType,
+        divisor,
+        multiplier,
+        conditions,
+        protectionFactor,
+      );
       if (!stack) {
         if (!sequence.length)
           return { status: `No layers cover ${calc.hitLocation}. The ADD uses normal sheet DR.` };
@@ -122,6 +137,7 @@ export function report(state) {
           sequence,
           initialConditions,
           finalConditions: conditions,
+          chinks: protectionFactor === 0.5,
           status: `${state.override ? 'This ADD’s temporary' : 'Actor’s saved'} layers replace sheet DR at ${calc.hitLocation}.`,
         }
       : { status: `No layers cover ${calc.hitLocation}. The ADD uses normal sheet DR.` };
@@ -154,7 +170,7 @@ export function reportHTML(state) {
       ? result.sequence
       : [result.sequence?.[Number(calc.viewId)]].filter(Boolean);
   return (
-    `<div class="armour-report"><p>${esc(result.status)}</p><p><strong>DR ${result.stack.rawDR}; effective DR ${result.stack.effectiveDR}</strong>. Hardened applies per layer. Wounding follows penetration.</p>` +
+    `<div class="armour-report"><p>${esc(result.status)}</p><p><strong>DR ${result.stack.rawDR}; effective DR ${result.stack.effectiveDR}</strong>. Hardened applies per layer.${result.chinks ? ' Chinks/weak point halves DR (B400).' : ''} Wounding follows penetration.</p>` +
     (items ?? [])
       .map((item) => {
         const child = calc._calculators[item.index],
@@ -231,8 +247,10 @@ export function patchADD(NativeADD, openEditor) {
     panel.className = 'armour-add-panel';
     const current = report(state),
       review = reviewError(state);
+    const canUseChinks = chinksEligible(this._calculator);
     panel.innerHTML = `<strong>Armour Layers</strong>
       <label><input type="checkbox" data-use-layers ${state.useLayers ? 'checked' : ''}> Use layered DR in this ADD</label>
+      ${canUseChinks ? `<label><input type="checkbox" data-armour-chinks ${state.chinks ? 'checked' : ''} data-help="Use only when this attack successfully targeted a chink or weak point under B400. Layered DR is halved, cumulative with armour divisors."> Chinks / weak point (DR ×½)</label>` : ''}
       ${review ? `<p role="alert" class="armour-error">${esc(review)}</p>` : ''}
       ${current.stack ? `<p>${esc(current.status)}</p><details><summary>Layer breakdown: DR ${current.stack.rawDR} → effective DR ${current.stack.effectiveDR}</summary>${reportHTML(state)}</details>` : reportHTML(state)}
       <div class="armour-add-actions"><button type="button" data-edit="saved">Edit actor’s Armour Layers</button><button type="button" data-edit="temporary">Adjust for this ADD only</button>${state.override ? '<button type="button" data-edit="reset">Reload saved layers</button>' : ''}</div>
@@ -241,6 +259,10 @@ export function patchADD(NativeADD, openEditor) {
     (root.querySelector('.gga-app') ?? root).prepend(panel);
     panel.querySelector('[data-use-layers]').addEventListener('change', (ev) => {
       state.useLayers = ev.currentTarget.checked;
+      this.render(false);
+    });
+    panel.querySelector('[data-armour-chinks]')?.addEventListener('change', (ev) => {
+      state.chinks = ev.currentTarget.checked;
       this.render(false);
     });
     for (const button of panel.querySelectorAll('[data-edit]')) {
