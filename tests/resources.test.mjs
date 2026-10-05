@@ -29,8 +29,18 @@ function actor(trackers = {}) {
 
 test('tracker sync creates a visible remaining-DR pool', () => {
   const a = actor();
-  const armour = { ...newLayer(['Torso']), name: 'Ballistic Vest', dr: 12, depletion: 'ablative', resourceId: 'vest' };
-  const store = { schema: 2, activeId: 'default', sets: [{ id: 'default', name: 'Default', profile: profile(armour) }] };
+  const armour = {
+    ...newLayer(['Torso']),
+    name: 'Ballistic Vest',
+    dr: 12,
+    depletion: 'ablative',
+    resourceId: 'vest',
+  };
+  const store = {
+    schema: 2,
+    activeId: 'default',
+    sets: [{ id: 'default', name: 'Default', profile: profile(armour) }],
+  };
   const update = trackerSyncUpdate(a, store);
   const tracker = update['system.additionalresources.tracker.0000'];
   assert.equal(tracker.name, 'Armour: Ballistic Vest');
@@ -48,7 +58,13 @@ test('tracker sync preserves existing armour loss when maximum DR changes', () =
       gla: { kind: 'armour', resourceId: 'vest', version: 1 },
     },
   });
-  const armour = { ...newLayer(['Torso']), name: 'Vest', dr: 14, depletion: 'semi-ablative', resourceId: 'vest' };
+  const armour = {
+    ...newLayer(['Torso']),
+    name: 'Vest',
+    dr: 14,
+    depletion: 'semi-ablative',
+    resourceId: 'vest',
+  };
   const store = { schema: 2, activeId: 'default', sets: [{ id: 'default', name: 'Default', profile: profile(armour) }] };
   const update = trackerSyncUpdate(a, store);
   assert.equal(update['system.additionalresources.tracker.0000'].max, 14);
