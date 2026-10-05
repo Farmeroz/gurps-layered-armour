@@ -360,6 +360,17 @@ if (!source || !manual) {
     assert.equal(a.system.additionalresources.tracker['0000'].value, 0);
     assert.equal(a.system.HP.value, 26);
   });
+  test('B400 chinks are contextual and cumulative with armour divisors', async () => {
+    reset();
+    const a = layers(actor('chinks', 99), { dr: 10 });
+    const d = await ready(new NativeADD(a, { damage: 10, damageType: 'pi', armorDivisor: 2 }));
+    assert.equal(d._calculator.effectiveDR, 5);
+    stateFor(d).chinks = true;
+    assert.equal(d._calculator.effectiveDR, 2);
+    assert.equal(d._calculator.pointsToApply, 8);
+    d._calculator.damageType = 'cr';
+    assert.equal(d._calculator.effectiveDR, 5);
+  });
   test('native calculated blunt trauma uses damage reaching flexible DR', async () => {
     reset();
     const a = layers(actor('one'), { dr: 6 }, { dr: 20, flexible: true });
