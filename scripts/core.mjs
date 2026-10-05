@@ -1,5 +1,6 @@
 export const ID = 'gurps-layered-armour';
 export const TYPES = ['cr', 'cut', 'imp', 'pi-', 'pi', 'pi+', 'pi++', 'burn', 'cor', 'tox', 'fat'];
+export const DEPLETION_TYPES = ['none', 'ablative', 'semi-ablative'];
 export const clone = (value) => JSON.parse(JSON.stringify(value));
 export const escapeHTML = (value) =>
   String(value ?? '').replace(
@@ -84,6 +85,17 @@ export const formatSplit = (value) =>
   Object.entries(value ?? {})
     .map(([key, dr]) => `${key}=${dr}`)
     .join('; ');
+function depletion(value) {
+  value = value ?? 'none';
+  if (!DEPLETION_TYPES.includes(value)) throw new Error('Unknown armour depletion type.');
+  return value;
+}
+function resourceId(value) {
+  if (value == null || value === '') return '';
+  if (typeof value !== 'string' || !/^[a-zA-Z0-9_-]{1,80}$/.test(value))
+    throw new Error('Invalid armour resource ID.');
+  return value;
+}
 function split(value) {
   if (!value || Array.isArray(value) || typeof value !== 'object')
     throw new Error('Invalid split DR.');
@@ -133,6 +145,8 @@ export function validateProfile(value) {
             : number(layer.dr, `${name} DR`),
         hardened: number(layer.hardened, `${name} Hardened`, 6),
         flexible: layer.kind === 'forcefield' ? false : !!layer.flexible,
+        depletion: depletion(layer.depletion),
+        resourceId: resourceId(layer.resourceId),
         split: split(layer.split),
         allLocations: !!layer.allLocations,
         locations: layer.locations.map((loc) => {
@@ -162,6 +176,8 @@ export function newLayer(locations) {
     dr: 0,
     hardened: 0,
     flexible: false,
+    depletion: 'none',
+    resourceId: '',
     split: {},
     allLocations: false,
     locations: [
@@ -176,6 +192,25 @@ export function layerDR(layer, where, type) {
   // Location DR supplies its own base; type overrides are inherited unless replaced.
   return loc?.split?.[type] ?? layer.split[type] ?? loc?.dr ?? layer.dr;
 }
+export function layerMaximumDR(layer) {
+  const values = [
+    layer.dr,
+    ...Object.values(layer.split ?? {}),
+    ...(layer.locations ?? []).flatMap((loc) => [
+      ...(loc.dr == null ? [] : [loc.dr]),
+      ...Object.values(loc.split ?? {}),
+    ]),
+  ].filter((value) => Number.isFinite(Number(value)));
+  return Math.max(0, ...values.map(Number));
+}
+export function conditionedLayerDR(layer, where, type, current = null) {
+  const nominal = layerDR(layer, where, type);
+  if (layer.depletion === 'none' || current == null) return nominal;
+  const maximum = layerMaximumDR(layer);
+  if (!Number.isFinite(Number(current)) || Number(current) < 0 || Number(current) > maximum)
+    throw new Error(`${layer.name} armour condition must be from 0 to ${maximum}.`);
+  return Math.max(0, nominal - (maximum - Number(current)));
+}
 export function hardenedDivisor(divisor, level) {
   if (divisor <= 1 && divisor !== -1) return divisor;
   if (!level) return divisor;
@@ -188,7 +223,7 @@ export function hardenedDivisor(divisor, level) {
     );
   return steps[Math.min(index + level, steps.length - 1)];
 }
-export function stackFor(profile, where, type, divisor = 1, multiplier = 1) {
+export function stackFor(profile, where, type, divisor = 1, multiplier = 1, conditions = {}) {
   profile = validateProfile(profile);
   const managed = profile.enabled && profile.layers.some((layer) => covers(layer, where));
   if (profile.enabled && profile.layers.some((layer) => layer.enabled && layer.reviewRequired))
@@ -205,7 +240,12 @@ export function stackFor(profile, where, type, divisor = 1, multiplier = 1) {
   const rows = profile.layers
     .filter((layer) => layer.enabled && covers(layer, where))
     .map((layer) => {
-      const dr = layerDR(layer, where, type);
+      const configuredDR = layerDR(layer, where, type);
+      const condition =
+        layer.resourceId && Object.hasOwn(conditions, layer.resourceId)
+          ? conditions[layer.resourceId]
+          : null;
+      const dr = conditionedLayerDR(layer, where, type, condition);
       const effectiveDivisor = hardenedDivisor(divisor, layer.hardened);
       const exact = effectiveDivisor === -1 ? 0 : (dr * multiplier) / effectiveDivisor;
       const before = Math.floor(exactTotal + 1e-9);
@@ -218,6 +258,10 @@ export function stackFor(profile, where, type, divisor = 1, multiplier = 1) {
         kind: layer.kind,
         flexible: layer.flexible,
         hardened: layer.hardened,
+        depletion: layer.depletion,
+        resourceId: layer.resourceId,
+        configuredDR,
+        condition,
         dr,
         divisor: effectiveDivisor,
         exact,
@@ -251,7 +295,14 @@ export function traceDamage(stack, damage, type) {
     else if (flexIncoming === null) flexIncoming = remaining;
     remaining = Math.max(0, remaining - row.effective);
     if (incoming > 0 && remaining === 0 && !stopped) stopped = { row, flexIncoming };
-    return { ...row, incoming, outgoing: remaining };
+    const stoppedHere = incoming - remaining;
+    const depletionLoss =
+      incoming <= 0 || row.depletion === 'none'
+        ? 0
+        : row.depletion === 'ablative'
+          ? stoppedHere
+          : Math.floor(incoming / 10);
+    return { ...row, incoming, outgoing: remaining, stopped: stoppedHere, depletionLoss };
   });
   const threshold =
     type === 'cr' ? 5 : ['cut', 'imp', 'pi-', 'pi', 'pi+', 'pi++'].includes(type) ? 10 : 0;
