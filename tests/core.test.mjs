@@ -164,7 +164,6 @@ test('condition trackers reduce all protection values by shared layer degradatio
   assert.equal(stackFor(profile(armour), 'Torso', 'cr', 1, 1, { plate: 9 }).rawDR, 7);
 });
 
-
 test('chinks halve layered DR cumulatively with armour divisors', () => {
   const stack = stackFor(profile(layer(10)), 'Torso', 'pi', 2, 1, {}, 0.5);
   assert.equal(stack.rawDR, 10);
