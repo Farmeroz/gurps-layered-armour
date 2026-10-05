@@ -119,7 +119,7 @@ export function trackerSyncUpdate(actor, store) {
   }
 
   for (const [resourceId, linked] of current) {
-    if (!desired.has(resourceId)) update[`${linked.path}.-=gla`] = null;
+    if (!desired.has(resourceId)) update[`${TRACKERS}.-=${linked.key}`] = null;
   }
   return update;
 }
