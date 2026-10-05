@@ -8,6 +8,7 @@ import {
   escapeHTML as esc,
   elementOf,
 } from './core.mjs';
+import { requireConditions, depletionPlan, applyDepletion } from './resources.mjs';
 
 const states = new WeakMap();
 const patched = Symbol.for('gurps-layered-armour.addPatched');
@@ -47,12 +48,14 @@ export function stateFor(dialog) {
     const { stack } = report(state);
     return stack ? stack.rows.some((row) => row.flexible) : native();
   });
-  for (const child of calc._calculators) {
+  for (const [index, child] of calc._calculators.entries()) {
+    wrap(child, 'penetratingDamage', (native) => {
+      const item = report(state).sequence?.[index];
+      return item ? item.trace.penetrating : native();
+    });
     wrap(child, 'calculatedBluntTrauma', (native) => {
-      const { stack } = report(state);
-      return stack
-        ? traceDamage(stack, child.effectiveDamage, calc.damageType).bluntTrauma
-        : native();
+      const item = report(state).sequence?.[index];
+      return item ? item.trace.bluntTrauma : native();
     });
   }
   return state;
@@ -85,10 +88,47 @@ export function report(state) {
     const divisor = !calc.useArmorDivisor || calc.isExplosion ? 1 : calc.armorDivisor || 1;
     const multiplier =
       calc.isShotgun && calc.shotgunRofMultiplier > 1 ? calc.shotgunDamageMultiplier : 1;
-    const stack = stackFor(profile, location, calc.damageType, divisor, multiplier);
-    return stack
+    const initialConditions = requireConditions(state.dialog.actor, profile);
+    const conditions = { ...initialConditions };
+    const sequence = [];
+    for (const [index, child] of calc._calculators.entries()) {
+      const stack = stackFor(
+        profile,
+        location,
+        calc.damageType,
+        divisor,
+        multiplier,
+        conditions,
+      );
+      if (!stack) {
+        if (!sequence.length)
+          return { status: `No layers cover ${calc.hitLocation}. The ADD uses normal sheet DR.` };
+        break;
+      }
+      const trace = traceDamage(stack, child.effectiveDamage, calc.damageType);
+      const before = { ...conditions };
+      for (const row of trace.rows) {
+        if (!row.resourceId || !row.depletionLoss) continue;
+        if (!Object.hasOwn(conditions, row.resourceId))
+          throw new Error(`${row.name} is missing its armour condition tracker.`);
+        conditions[row.resourceId] = Math.max(0, conditions[row.resourceId] - row.depletionLoss);
+      }
+      sequence.push({
+        index,
+        stack,
+        trace,
+        conditionsBefore: before,
+        conditionsAfter: { ...conditions },
+      });
+    }
+    const selected =
+      calc.viewId === 'all' ? sequence[0] : sequence[Number(calc.viewId)] ?? sequence[0];
+    return selected
       ? {
-          stack,
+          stack: selected.stack,
+          sequence,
+          initialConditions,
+          finalConditions: conditions,
           status: `${state.override ? 'This ADD’s temporary' : 'Actor’s saved'} layers replace sheet DR at ${calc.hitLocation}.`,
         }
       : { status: `No layers cover ${calc.hitLocation}. The ADD uses normal sheet DR.` };
@@ -101,11 +141,14 @@ export function reviewError(state) {
   if (result.error) return result.error;
   if (!result.stack) return '';
   const calc = state.dialog._calculator;
-  const children =
-    calc.viewId === 'all' ? calc._calculators : [calc._calculators[Number(calc.viewId)]];
-  for (const child of children.filter(Boolean)) {
-    const trace = traceDamage(result.stack, child.effectiveDamage, calc.damageType);
-    if (calc.useBluntTrauma && trace.review && child._bluntTrauma === null) return trace.review;
+  const items =
+    calc.viewId === 'all'
+      ? result.sequence
+      : [result.sequence?.[Number(calc.viewId)]].filter(Boolean);
+  for (const item of items ?? []) {
+    const child = calc._calculators[item.index];
+    if (calc.useBluntTrauma && item.trace.review && child?._bluntTrauma === null)
+      return item.trace.review;
   }
   return '';
 }
@@ -113,28 +156,35 @@ export function reportHTML(state) {
   const result = report(state),
     calc = state.dialog._calculator;
   if (!result.stack) return `<p>${esc(result.error ?? result.status)}</p>`;
-  const children =
-    calc.viewId === 'all' ? calc._calculators : [calc._calculators[Number(calc.viewId)]];
+  const items =
+    calc.viewId === 'all'
+      ? result.sequence
+      : [result.sequence?.[Number(calc.viewId)]].filter(Boolean);
   return (
     `<div class="armour-report"><p>${esc(result.status)}</p><p><strong>DR ${result.stack.rawDR}; effective DR ${result.stack.effectiveDR}</strong>. Hardened applies per layer. Wounding follows penetration.</p>` +
-    children
-      .filter(Boolean)
-      .map((child, index) => {
-        const trace = traceDamage(result.stack, child.effectiveDamage, calc.damageType);
+    (items ?? [])
+      .map((item) => {
+        const child = calc._calculators[item.index],
+          trace = item.trace;
         return (
-          `<p>Hit ${calc.viewId === 'all' ? index + 1 : Number(calc.viewId) + 1}: ${child.effectiveDamage} ${esc(calc.damageType)} → ${trace.penetrating} penetrating; calculated blunt trauma ${trace.bluntTrauma}${child._bluntTrauma !== null ? ` (override ${child._bluntTrauma})` : ''}.</p>
-      <table><thead><tr><th>Outer → inner</th><th>DR</th><th>Hard.</th><th>Divisor</th><th>Effective DR*</th><th>Damage in → out</th></tr></thead><tbody>` +
+          `<p>Hit ${item.index + 1}: ${child.effectiveDamage} ${esc(calc.damageType)} → ${trace.penetrating} penetrating; calculated blunt trauma ${trace.bluntTrauma}${child._bluntTrauma !== null ? ` (override ${child._bluntTrauma})` : ''}.</p>
+      <table><thead><tr><th>Outer → inner</th><th>DR</th><th>Hard.</th><th>Divisor</th><th>Effective DR*</th><th>Damage in → out</th><th>Condition</th></tr></thead><tbody>` +
           trace.rows
-            .map(
-              (row) =>
-                `<tr><td>${esc(row.name)}${row.flexible ? ' (flexible)' : ''}</td><td>${row.dr}</td><td>${row.hardened}</td><td>${row.divisor === -1 ? '∞' : row.divisor}</td><td>${row.effective}</td><td>${row.incoming} → ${row.outgoing}</td></tr>`,
-            )
+            .map((row) => {
+              const condition =
+                row.depletion === 'none'
+                  ? '—'
+                  : row.condition == null
+                    ? row.depletion
+                    : `${row.condition} → ${Math.max(0, row.condition - row.depletionLoss)} (-${row.depletionLoss})`;
+              return `<tr><td>${esc(row.name)}${row.flexible ? ' (flexible)' : ''}${row.depletion !== 'none' ? ` (${esc(row.depletion)})` : ''}</td><td>${row.dr}</td><td>${row.hardened}</td><td>${row.divisor === -1 ? '∞' : row.divisor}</td><td>${row.effective}</td><td>${row.incoming} → ${row.outgoing}</td><td>${esc(condition)}</td></tr>`;
+            })
             .join('') +
           `</tbody></table>${trace.review ? `<p>${esc(trace.review)}</p>` : ''}`
         );
       })
       .join('') +
-    '<p>*Fractional protection is retained across layers and the total is rounded down once. Rows allocate the rounded protection in layer order.</p></div>'
+    '<p>*Fractional protection is retained across layers and the total is rounded down once. Rows allocate the rounded protection in layer order. Armour condition changes are previews until injury is applied.</p></div>'
   );
 }
 // Remove the native single-divisor explanatory formula when showing a layered
@@ -246,6 +296,8 @@ export function patchADD(NativeADD, openEditor) {
   });
   register('resolveInjury', async function (wrapped, keepOpen, injury, publicly, results = null) {
     const state = stateFor(this);
+    let depletion = null,
+      expected = null;
     if (results !== null) {
       const error = reviewError(state);
       if (error) {
@@ -254,14 +306,31 @@ export function patchADD(NativeADD, openEditor) {
       }
       if (!canEdit(this.actor, game.user))
         throw new Error('You no longer have permission to apply damage to this actor.');
-      if (report(state).stack) {
+      const calculated = report(state);
+      if (calculated.stack) {
+        // Recalculate here so repeated Apply Multiple operations see armour
+        // condition left by the previous application.
+        injury = this._calculator.pointsToApply;
+        depletion = depletionPlan(calculated.sequence.map((item) => item.trace));
+        expected = { ...calculated.initialConditions };
         const holder = document.createElement('div');
         holder.innerHTML = results;
         fixResults(holder, state);
         results = holder.innerHTML + reportHTML(state);
       }
     }
-    return wrapped(keepOpen, injury, publicly, results);
+    const outcome = await wrapped(keepOpen, injury, publicly, results);
+    if (depletion && Object.values(depletion).some(Boolean)) {
+      try {
+        await applyDepletion(this.actor, depletion, expected);
+      } catch (error) {
+        console.error('gurps-layered-armour | Injury applied but armour condition update failed.', error);
+        ui.notifications.error(
+          `Injury was applied, but armour condition could not be updated: ${error.message} Adjust the armour Resource Tracker manually; do not reapply injury.`,
+        );
+      }
+    }
+    return outcome;
   });
   // Manual Damage renders a fresh native results table immediately before apply.
   // resolveInjury above attaches its matching armour audit inside the same chat
