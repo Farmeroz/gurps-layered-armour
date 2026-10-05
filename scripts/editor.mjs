@@ -146,7 +146,7 @@ export function createEditorClass(Base) {
         const depletion = value('depletion');
         const resourceId =
           depletion === 'none'
-            ? previous?.resourceId ?? ''
+            ? ''
             : previous?.resourceId ||
               (this.temporary
                 ? ''
