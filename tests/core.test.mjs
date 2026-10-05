@@ -8,6 +8,8 @@ import {
   stackFor,
   traceDamage,
   hardenedDivisor,
+  layerMaximumDR,
+  conditionedLayerDR,
   canEdit,
 } from '../scripts/core.mjs';
 const layer = (dr, props = {}) => ({ ...newLayer(['Torso']), dr, ...props });
@@ -96,4 +98,78 @@ test('validation rejects malformed flags and ambiguous slash DR; forcefields can
   );
   assert.equal(canEdit({ isOwner: true }, { isGM: false }), true);
   assert.equal(canEdit({ isOwner: false }, { isGM: false }), false);
+});
+
+
+test('ablative DR loses only damage actually stopped after divisors', () => {
+  const ablative = layer(10, { depletion: 'ablative', resourceId: 'vest' });
+  const stack = stackFor(profile(ablative), 'Torso', 'cr', 2, 1, { vest: 10 });
+  const trace = traceDamage(stack, 10, 'cr');
+  assert.equal(stack.effectiveDR, 5);
+  assert.equal(trace.penetrating, 5);
+  assert.equal(trace.rows[0].stopped, 5);
+  assert.equal(trace.rows[0].depletionLoss, 5);
+});
+
+test('semi-ablative DR loses one point per full 10 incoming basic damage', () => {
+  const semi = layer(12, { depletion: 'semi-ablative', resourceId: 'vest' });
+  for (const divisor of [1, 2, 5]) {
+    const trace = traceDamage(
+      stackFor(profile(semi), 'Torso', 'cr', divisor, 1, { vest: 12 }),
+      26,
+      'cr',
+    );
+    assert.equal(trace.rows[0].depletionLoss, 2);
+  }
+});
+
+test('inner degrading layers are untouched when outer armour stops the attack', () => {
+  const stack = stackFor(
+    profile(
+      layer(20),
+      layer(12, { depletion: 'semi-ablative', resourceId: 'inner' }),
+    ),
+    'Torso',
+    'cr',
+    1,
+    1,
+    { inner: 12 },
+  );
+  const trace = traceDamage(stack, 15, 'cr');
+  assert.equal(trace.rows[0].outgoing, 0);
+  assert.equal(trace.rows[1].incoming, 0);
+  assert.equal(trace.rows[1].depletionLoss, 0);
+});
+
+test('inner semi-ablative loss uses only damage reaching that layer', () => {
+  const stack = stackFor(
+    profile(
+      layer(8),
+      layer(12, { depletion: 'semi-ablative', resourceId: 'inner' }),
+    ),
+    'Torso',
+    'cr',
+    1,
+    1,
+    { inner: 12 },
+  );
+  const trace = traceDamage(stack, 26, 'cr');
+  assert.equal(trace.rows[1].incoming, 18);
+  assert.equal(trace.rows[1].depletionLoss, 1);
+});
+
+test('condition trackers reduce all protection values by shared layer degradation', () => {
+  const armour = layer(12, {
+    depletion: 'ablative',
+    resourceId: 'plate',
+    split: { cut: 8 },
+    locations: [{ where: 'Torso', dr: 10, split: {} }],
+  });
+  assert.equal(layerMaximumDR(armour), 12);
+  assert.equal(conditionedLayerDR(armour, 'Torso', 'cr', 9), 7);
+  assert.equal(conditionedLayerDR(armour, 'Torso', 'cut', 9), 5);
+  assert.equal(
+    stackFor(profile(armour), 'Torso', 'cr', 1, 1, { plate: 9 }).rawDR,
+    7,
+  );
 });
