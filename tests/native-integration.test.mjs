@@ -305,6 +305,61 @@ if (!source || !manual) {
     assert.match(messages[0].content, /Manual damage/);
     assert.match(messages[0].content, /effective DR 8/);
   });
+  test('ablative armour uses visible tracker state and depletes only after apply', async () => {
+    reset();
+    const a = layers(actor('ablative', 99), {
+      dr: 10,
+      depletion: 'ablative',
+      resourceId: 'vest',
+    });
+    a.system.additionalresources.tracker['0000'] = {
+      name: 'Armour: Vest',
+      alias: 'DR',
+      value: 10,
+      max: 10,
+      min: 0,
+      isDamageTracker: false,
+      gla: { kind: 'armour', resourceId: 'vest', version: 1 },
+    };
+    const d = await ready(new NativeADD(a, { damage: 10, damageType: 'cr', armorDivisor: 2 }));
+    assert.equal(d._calculator.effectiveDR, 5);
+    assert.equal(d._calculator.pointsToApply, 5);
+    assert.equal(a.system.additionalresources.tracker['0000'].value, 10);
+    await d.resolveInjury(true, d._calculator.pointsToApply, true, 'calculated result');
+    assert.equal(a.system.additionalresources.tracker['0000'].value, 5);
+    assert.equal(a.system.HP.value, 25);
+  });
+  test('multi-hit ablative armour is resolved sequentially within one ADD', async () => {
+    reset();
+    const a = layers(actor('burst', 99), {
+      dr: 8,
+      depletion: 'ablative',
+      resourceId: 'plate',
+    });
+    a.system.additionalresources.tracker['0000'] = {
+      name: 'Armour: Plate',
+      alias: 'DR',
+      value: 8,
+      max: 8,
+      min: 0,
+      isDamageTracker: false,
+      gla: { kind: 'armour', resourceId: 'plate', version: 1 },
+    };
+    const d = await ready(
+      new NativeADD(a, [
+        { damage: 6, damageType: 'cr', armorDivisor: 1 },
+        { damage: 6, damageType: 'cr', armorDivisor: 1 },
+      ]),
+    );
+    assert.deepEqual(
+      d._calculator._calculators.map((child) => child.penetratingDamage),
+      [0, 4],
+    );
+    assert.equal(d._calculator.pointsToApply, 4);
+    await d.resolveInjury(true, d._calculator.pointsToApply, true, 'calculated result');
+    assert.equal(a.system.additionalresources.tracker['0000'].value, 0);
+    assert.equal(a.system.HP.value, 26);
+  });
   test('native calculated blunt trauma uses damage reaching flexible DR', async () => {
     reset();
     const a = layers(actor('one'), { dr: 6 }, { dr: 20, flexible: true });
