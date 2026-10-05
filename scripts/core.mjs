@@ -223,7 +223,15 @@ export function hardenedDivisor(divisor, level) {
     );
   return steps[Math.min(index + level, steps.length - 1)];
 }
-export function stackFor(profile, where, type, divisor = 1, multiplier = 1, conditions = {}) {
+export function stackFor(
+  profile,
+  where,
+  type,
+  divisor = 1,
+  multiplier = 1,
+  conditions = {},
+  protectionFactor = 1,
+) {
   profile = validateProfile(profile);
   const managed = profile.enabled && profile.layers.some((layer) => covers(layer, where));
   if (profile.enabled && profile.layers.some((layer) => layer.enabled && layer.reviewRequired))
@@ -235,6 +243,8 @@ export function stackFor(profile, where, type, divisor = 1, multiplier = 1, cond
     throw new Error('Invalid armour divisor.');
   if (!Number.isFinite(multiplier) || multiplier < 1)
     throw new Error('Invalid shotgun multiplier.');
+  if (!Number.isFinite(protectionFactor) || protectionFactor <= 0 || protectionFactor > 1)
+    throw new Error('Invalid armour protection factor.');
   let exactTotal = 0,
     rawTotal = 0;
   const rows = profile.layers
@@ -247,7 +257,7 @@ export function stackFor(profile, where, type, divisor = 1, multiplier = 1, cond
           : null;
       const dr = conditionedLayerDR(layer, where, type, condition);
       const effectiveDivisor = hardenedDivisor(divisor, layer.hardened);
-      const exact = effectiveDivisor === -1 ? 0 : (dr * multiplier) / effectiveDivisor;
+      const exact = effectiveDivisor === -1 ? 0 : (dr * multiplier * protectionFactor) / effectiveDivisor;
       const before = Math.floor(exactTotal + 1e-9);
       exactTotal += exact;
       rawTotal += dr;
@@ -264,6 +274,7 @@ export function stackFor(profile, where, type, divisor = 1, multiplier = 1, cond
         condition,
         dr,
         divisor: effectiveDivisor,
+        protectionFactor,
         exact,
         effective: Math.floor(exactTotal + 1e-9) - before,
       };
