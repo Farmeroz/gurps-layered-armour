@@ -59,7 +59,11 @@
         <label>Default DR<input data-field="dr" type="number" min="0" max="1000000" step="1" value="{{dr}}" placeholder="Needs review"></label>
         <label>Hardened level<input data-field="hardened" type="number" min="0" max="6" step="1" value="{{hardened}}"></label>
         <label class="armour-flex"><input data-field="flexible" type="checkbox" {{checked flexible}}> Flexible</label>
+        <label>Degradation<select data-field="depletion" {{#if ../temporary}}disabled{{/if}} data-help="Ablative DR loses DR equal to damage this layer stops. Semi-Ablative loses 1 DR per full 10 points of basic damage reaching this layer. The linked Resource Tracker shows current condition.">{{#each depletionModes}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
       </div>
+      {{#unless ../temporary}}
+        {{#if condition}}<p class="armour-condition"><strong>Condition:</strong> {{condition.value}} / {{condition.max}} DR · visible tracker “{{condition.tracker.name}}”. Edit or reset that tracker on the character sheet when armour is repaired or replaced.</p>{{else}}{{#if needsConditionTracker}}<p class="armour-condition"><strong>Condition tracker:</strong> will be created automatically when you save.</p>{{/if}}{{/if}}
+      {{/unless}}
       <label>Damage-type DR overrides<input data-field="split" value="{{splitText}}" placeholder="e.g. cut=4; pi=6; pi+=6"></label>
       <details><summary data-coverage-summary>Coverage: {{coverageSummary}}</summary>
         <label><input type="checkbox" data-field="allLocations" {{checked allLocations}}> Covers every location</label>
