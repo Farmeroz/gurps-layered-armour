@@ -371,6 +371,28 @@ if (!source || !manual) {
     d._calculator.damageType = 'cr';
     assert.equal(d._calculator.effectiveDR, 5);
   });
+  test('B400 large-area DR averages configured torso with least exposed protection', async () => {
+    reset();
+    const a = layers(actor('large-area', 2), { dr: 10 });
+    const d = await ready(
+      new NativeADD(a, { damage: 12, damageType: 'cr', armorDivisor: 2, hitlocation: 'Large-Area' }),
+    );
+    assert.equal(d._calculator.DR, 6);
+    assert.equal(d._calculator.effectiveDR, 3);
+    assert.equal(d._calculator.pointsToApply, 9);
+    assert.equal(report(stateFor(d)).stack.weakestLocation, 'Vitals');
+  });
+  test('collateral explosion automatically uses large-area location and ignores attack AD', async () => {
+    reset();
+    const a = layers(actor('explosion', 2), { dr: 10 });
+    const d = new NativeADD(a, { damage: 30, damageType: 'cr', armorDivisor: 5, hitlocation: 'Left Arm' });
+    d._calculator.isExplosion = true;
+    d._calculator.hexesFromExplosion = 1;
+    await d.getData();
+    assert.equal(d._calculator.hitLocation, 'Large-Area');
+    assert.equal(d._calculator.DR, 6);
+    assert.equal(d._calculator.effectiveDR, 6);
+  });
   test('native calculated blunt trauma uses damage reaching flexible DR', async () => {
     reset();
     const a = layers(actor('one'), { dr: 6 }, { dr: 20, flexible: true });
