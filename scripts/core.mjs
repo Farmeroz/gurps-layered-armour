@@ -366,10 +366,13 @@ export function largeAreaStackFor(torsoStack, weakestStack, weakestLocation = ''
     rawExact += dr;
     const rawAllocated = Math.ceil(rawExact - 1e-9) - rawBefore;
     const divisor = source.divisor;
+    // B400 rounds the averaged location DR up before it protects. Allocate that
+    // rounded DR across the averaged layers first, then apply each layer's own
+    // Hardened-adjusted divisor.
     const exact =
       divisor === -1
         ? 0
-        : (dr * (source.multiplier ?? 1) * (source.protectionFactor ?? 1)) / divisor;
+        : (rawAllocated * (source.multiplier ?? 1) * (source.protectionFactor ?? 1)) / divisor;
     const before = Math.floor(exactTotal + 1e-9);
     exactTotal += exact;
     return {
