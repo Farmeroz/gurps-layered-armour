@@ -16,10 +16,13 @@ export function armourTrackers(actor) {
     if (meta?.kind !== 'armour' || !meta.resourceId) continue;
     if (!/^\d+$/.test(key)) throw new Error('An Armour Layers tracker has an invalid slot.');
     if (found.has(meta.resourceId))
-      throw new Error('Duplicate Armour Layers condition trackers found. Remove the duplicate tracker.');
+      throw new Error(
+        'Duplicate Armour Layers condition trackers found. Remove the duplicate tracker.',
+      );
     const max = integer(tracker.max, `${tracker.name || 'Armour'} maximum`);
     const value = integer(tracker.value, `${tracker.name || 'Armour'} current value`);
-    if (value > max) throw new Error(`${tracker.name || 'Armour'} current value exceeds its maximum.`);
+    if (value > max)
+      throw new Error(`${tracker.name || 'Armour'} current value exceeds its maximum.`);
     found.set(meta.resourceId, {
       key,
       tracker,
@@ -46,7 +49,9 @@ function degradingLayers(store) {
     for (const layer of profile.layers) {
       if (layer.depletion === 'none') continue;
       if (!layer.resourceId)
-        throw new Error(`${layer.name} uses ${layer.depletion} DR but has no condition tracker link.`);
+        throw new Error(
+          `${layer.name} uses ${layer.depletion} DR but has no condition tracker link.`,
+        );
       const maximum = layerMaximumDR(layer);
       const existing = found.get(layer.resourceId);
       if (existing && existing.maximum !== maximum)
@@ -158,7 +163,8 @@ export async function applyDepletion(actor, losses, expected = null) {
     const amount = integer(amountRaw, 'Armour depletion');
     if (!amount) continue;
     const linked = current.get(resourceId);
-    if (!linked) throw new Error('An armour condition tracker disappeared before damage was applied.');
+    if (!linked)
+      throw new Error('An armour condition tracker disappeared before damage was applied.');
     if (expected && expected[resourceId] !== linked.value)
       throw new Error(
         `${linked.tracker.name} changed while damage was being applied. Review its current condition before continuing.`,
