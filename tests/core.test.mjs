@@ -87,6 +87,23 @@ test('consecutive flexible layers combine for blunt trauma; types and penetratio
 test('shotgun multiplier applies to DR before divisors', () => {
   assert.equal(stackFor(profile(layer(3), layer(2)), 'Torso', 'pi', 2, 4).effectiveDR, 10);
 });
+test('close-range shotgun DR multiplier is consumed by ablative armour for that hit', () => {
+  const armour = layer(3, { depletion: 'ablative', resourceId: 'vest' });
+  const first = traceDamage(
+    stackFor(profile(armour), 'Torso', 'pi', 1, 4, { vest: 3 }),
+    10,
+    'pi',
+  );
+  assert.equal(first.penetrating, 0);
+  assert.equal(first.rows[0].depletionLoss, 10);
+  const second = traceDamage(
+    stackFor(profile(armour), 'Torso', 'pi', 1, 4, { vest: 0 }),
+    10,
+    'pi',
+  );
+  assert.equal(second.penetrating, 10);
+});
+
 test('validation rejects malformed flags and ambiguous slash DR; forcefields cannot be flexible', () => {
   assert.throws(() => validateProfile({ schema: 2, layers: [] }));
   for (const dr of [-1, NaN, Infinity, '4/2', '', 0.5])
