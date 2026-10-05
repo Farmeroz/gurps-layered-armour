@@ -124,10 +124,7 @@ test('semi-ablative DR loses one point per full 10 incoming basic damage', () =>
 
 test('inner degrading layers are untouched when outer armour stops the attack', () => {
   const stack = stackFor(
-    profile(
-      layer(20),
-      layer(12, { depletion: 'semi-ablative', resourceId: 'inner' }),
-    ),
+    profile(layer(20), layer(12, { depletion: 'semi-ablative', resourceId: 'inner' })),
     'Torso',
     'cr',
     1,
@@ -142,10 +139,7 @@ test('inner degrading layers are untouched when outer armour stops the attack', 
 
 test('inner semi-ablative loss uses only damage reaching that layer', () => {
   const stack = stackFor(
-    profile(
-      layer(8),
-      layer(12, { depletion: 'semi-ablative', resourceId: 'inner' }),
-    ),
+    profile(layer(8), layer(12, { depletion: 'semi-ablative', resourceId: 'inner' })),
     'Torso',
     'cr',
     1,
@@ -167,8 +161,5 @@ test('condition trackers reduce all protection values by shared layer degradatio
   assert.equal(layerMaximumDR(armour), 12);
   assert.equal(conditionedLayerDR(armour, 'Torso', 'cr', 9), 7);
   assert.equal(conditionedLayerDR(armour, 'Torso', 'cut', 9), 5);
-  assert.equal(
-    stackFor(profile(armour), 'Torso', 'cr', 1, 1, { plate: 9 }).rawDR,
-    7,
-  );
+  assert.equal(stackFor(profile(armour), 'Torso', 'cr', 1, 1, { plate: 9 }).rawDR, 7);
 });
