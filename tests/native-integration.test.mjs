@@ -374,14 +374,9 @@ if (!source || !manual) {
   test('B400 large-area DR averages configured torso with least exposed protection', async () => {
     reset();
     const a = layers(actor('large-area', 2), { dr: 10 });
-    const d = await ready(
-      new NativeADD(a, {
-        damage: 12,
-        damageType: 'cr',
-        armorDivisor: 2,
-        hitlocation: 'Large-Area',
-      }),
-    );
+    const d = new NativeADD(a, { damage: 12, damageType: 'cr', armorDivisor: 2 });
+    d._calculator.hitLocation = 'Large-Area';
+    await ready(d);
     assert.equal(d._calculator.DR, 6);
     assert.equal(d._calculator.effectiveDR, 3);
     assert.equal(d._calculator.pointsToApply, 9);
@@ -438,16 +433,15 @@ if (!source || !manual) {
     assert.equal(a.system.HP.value, 20);
     assert.equal(b.system.HP.value, 26);
   });
-  test('large-area review blocks application until explicit native fallback', async () => {
+  test('large-area layered protection resolves without native fallback', async () => {
     reset();
-    const a = layers(actor('one'), { dr: 5 });
-    const d = await ready(new NativeADD(a, { damage: 20, damageType: 'cr', armorDivisor: 1 }));
+    const a = layers(actor('one', 2), { dr: 5 });
+    const d = new NativeADD(a, { damage: 20, damageType: 'cr', armorDivisor: 1 });
     d._calculator.hitLocation = 'Large-Area';
-    assert.match(reviewError(stateFor(d)), /specific hit location/);
-    await assert.rejects(d.resolveInjury(true, 1, true, 'results'));
-    assert.equal(updates.length, 0);
-    stateFor(d).useLayers = false;
+    await ready(d);
     assert.equal(reviewError(stateFor(d)), '');
+    assert.equal(d._calculator.DR, 4);
+    assert.equal(d._calculator.pointsToApply, 16);
   });
   test('inner rigid armour after flexible stopping requires reviewed blunt trauma', async () => {
     reset();
