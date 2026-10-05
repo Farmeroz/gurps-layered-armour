@@ -375,7 +375,12 @@ if (!source || !manual) {
     reset();
     const a = layers(actor('large-area', 2), { dr: 10 });
     const d = await ready(
-      new NativeADD(a, { damage: 12, damageType: 'cr', armorDivisor: 2, hitlocation: 'Large-Area' }),
+      new NativeADD(a, {
+        damage: 12,
+        damageType: 'cr',
+        armorDivisor: 2,
+        hitlocation: 'Large-Area',
+      }),
     );
     assert.equal(d._calculator.DR, 6);
     assert.equal(d._calculator.effectiveDR, 3);
@@ -385,7 +390,12 @@ if (!source || !manual) {
   test('collateral explosion automatically uses large-area location and ignores attack AD', async () => {
     reset();
     const a = layers(actor('explosion', 2), { dr: 10 });
-    const d = new NativeADD(a, { damage: 30, damageType: 'cr', armorDivisor: 5, hitlocation: 'Left Arm' });
+    const d = new NativeADD(a, {
+      damage: 30,
+      damageType: 'cr',
+      armorDivisor: 5,
+      hitlocation: 'Left Arm',
+    });
     d._calculator.isExplosion = true;
     d._calculator.hexesFromExplosion = 1;
     await d.getData();
