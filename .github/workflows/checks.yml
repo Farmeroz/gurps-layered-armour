@@ -25,6 +25,11 @@ jobs:
         run: npm run test:setup
       - name: Check formatting
         run: npm run format:check
+      - name: Show formatter diff on failure
+        if: failure()
+        run: |
+          npx prettier --write scripts/core.mjs scripts/integration.mjs tests/core.test.mjs tests/native-integration.test.mjs
+          git diff -- scripts/core.mjs scripts/integration.mjs tests/core.test.mjs tests/native-integration.test.mjs
       - name: Check syntax
         run: npm run check:syntax
       - name: Run automated suite
