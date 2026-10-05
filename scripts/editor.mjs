@@ -150,7 +150,7 @@ export function createEditorClass(Base) {
             : previous?.resourceId ||
               (this.temporary
                 ? ''
-                : foundry.utils.randomID?.() ?? Math.random().toString(36).slice(2));
+                : (foundry.utils.randomID?.() ?? Math.random().toString(36).slice(2)));
         return {
           ...(previous?.source ? { source: clone(previous.source) } : {}),
           ...(reviewRequired !== undefined ? { reviewRequired } : {}),
