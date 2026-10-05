@@ -405,6 +405,26 @@ if (!source || !manual) {
     assert.equal(d._calculator.pointsToApply, 2);
     assert.equal(d._calculator.effectiveBluntTrauma, 2);
   });
+  test('native injury tolerance, shock, major-wound and crippling logic remains authoritative', async () => {
+    reset();
+    const a = layers(actor('injury-audit', 99), { dr: 2, allLocations: true });
+    const d = await ready(new NativeADD(a, { damage: 20, damageType: 'cut', armorDivisor: 1 }));
+    d._calculator.hitLocation = 'Left Arm';
+    assert.equal(d._calculator.pointsToApply, 6);
+    assert.equal(d._calculator._calculators[0].calculatedShock, 4);
+    assert.equal(d._calculator._calculators[0].isCripplingInjury, true);
+    assert.equal(d._calculator._calculators[0].isMajorWound, true);
+    assert.ok(d._calculator.effects.some((effect) => effect.type === 'crippling'));
+    assert.ok(d._calculator.effects.some((effect) => effect.type === 'majorwound'));
+
+    d._calculator.hitLocation = 'Torso';
+    d._calculator.damageType = 'pi++';
+    d._calculator.isInjuryTolerance = true;
+    d._calculator.injuryToleranceType = 'unliving';
+    d._calculator._calculators[0].basicDamage = 10;
+    assert.equal(d._calculator.penetratingDamage, 8);
+    assert.equal(d._calculator.pointsToApply, 8);
+  });
   test('temporary overrides do not alter actor flags and actor saves are read live', async () => {
     reset();
     const a = layers(actor('one'), { dr: 5 });
