@@ -6,6 +6,8 @@ import {
   validateProfile,
   parseSplit,
   stackFor,
+  scalarStackFor,
+  largeAreaStackFor,
   traceDamage,
   hardenedDivisor,
   layerMaximumDR,
@@ -179,4 +181,23 @@ test('ablative loss through chinks equals only damage actually stopped', () => {
     'pi',
   );
   assert.equal(trace.rows[0].depletionLoss, 2);
+});
+
+
+test('large-area DR averages torso and least protection before applying divisors', () => {
+  const torso = stackFor(profile(layer(10)), 'Torso', 'cr', 2);
+  const weak = scalarStackFor(2, 2, 1, 'Sheet DR: Left Arm');
+  const large = largeAreaStackFor(torso, weak, 'Left Arm');
+  assert.equal(large.rawDR, 6);
+  assert.equal(large.effectiveDR, 3);
+  assert.equal(large.weakestLocation, 'Left Arm');
+});
+
+test('large-area ablative loss reflects only its averaged contribution', () => {
+  const armour = layer(10, { depletion: 'ablative', resourceId: 'vest' });
+  const torso = stackFor(profile(armour), 'Torso', 'cr', 1, 1, { vest: 10 });
+  const weak = scalarStackFor(0, 1, 1, 'Sheet DR: Left Arm');
+  const trace = traceDamage(largeAreaStackFor(torso, weak, 'Left Arm'), 10, 'cr');
+  assert.equal(trace.penetrating, 5);
+  assert.equal(trace.rows.find((row) => row.resourceId === 'vest').depletionLoss, 5);
 });
