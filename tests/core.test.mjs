@@ -100,7 +100,6 @@ test('validation rejects malformed flags and ambiguous slash DR; forcefields can
   assert.equal(canEdit({ isOwner: false }, { isGM: false }), false);
 });
 
-
 test('ablative DR loses only damage actually stopped after divisors', () => {
   const ablative = layer(10, { depletion: 'ablative', resourceId: 'vest' });
   const stack = stackFor(profile(ablative), 'Torso', 'cr', 2, 1, { vest: 10 });
