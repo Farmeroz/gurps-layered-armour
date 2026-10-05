@@ -3,6 +3,8 @@ import {
   readProfile,
   validateProfile,
   stackFor,
+  scalarStackFor,
+  largeAreaStackFor,
   traceDamage,
   canEdit,
   escapeHTML as esc,
@@ -14,14 +16,32 @@ const states = new WeakMap();
 const patched = Symbol.for('gurps-layered-armour.addPatched');
 function chinksEligible(calc) {
   return (
-    ['imp', 'pi-', 'pi', 'pi+', 'pi++'].includes(calc.damageType) ||
-    (calc.damageType === 'burn' && calc.damageModifier === 'tbb')
+    !calc.isExplosion &&
+    calc.hitLocation !== 'Large-Area' &&
+    (['imp', 'pi-', 'pi', 'pi+', 'pi++'].includes(calc.damageType) ||
+      (calc.damageType === 'burn' && calc.damageModifier === 'tbb'))
   );
+}
+function largeAreaLocations(actor) {
+  const entries = actor.hitLocationsWithDR ?? [];
+  const filtered = entries.filter((entry) => !Array.isArray(entry.roll) || entry.roll.length > 0);
+  return [...new Set((filtered.length ? filtered : entries).map((entry) => entry.where).filter(Boolean))];
+}
+function sheetDR(actor, where, type) {
+  const entries = actor.hitLocationsWithDR ?? [];
+  let entry = entries.find((item) => item.where === where);
+  if (!entry) {
+    const localised = globalThis.game?.i18n?.localize?.(`GURPS.hitLocation${where}`);
+    if (localised) entry = entries.find((item) => item.where === localised);
+  }
+  const value = entry?.getDR?.(type) ?? entry?.dr;
+  const dr = Number(value);
+  return Number.isFinite(dr) && dr >= 0 ? Math.floor(dr) : 0;
 }
 export function stateFor(dialog) {
   let state = states.get(dialog);
   if (state) return state;
-  state = { dialog, useLayers: true, override: null, chinks: false };
+  state = { dialog, useLayers: true, override: null, chinks: false, exposed: null };
   states.set(dialog, state);
   const calc = dialog._calculator;
   if (!calc || !Array.isArray(calc._calculators))
@@ -76,13 +96,14 @@ export function report(state) {
     if (!profile.enabled)
       return { status: 'No active armour profile. The ADD uses normal sheet DR.' };
     const calc = state.dialog._calculator;
-    if (['Large-Area', 'Random', 'User Entered'].includes(calc.hitLocation)) {
+    if (['Random', 'User Entered'].includes(calc.hitLocation)) {
       return {
         error:
-          'Choose a specific hit location, or turn off layered DR for this ADD and enter reviewed native DR. Automatic large-area and explosion armour calculations are not included in this release.',
+          'Choose a specific hit location, or turn off layered DR for this ADD and enter reviewed native DR.',
       };
     }
-    let location = calc.hitLocation;
+    const largeArea = calc.isExplosion || calc.hitLocation === 'Large-Area';
+    let location = largeArea ? 'Torso' : calc.hitLocation;
     const localised = globalThis.game?.i18n?.localize?.(`GURPS.hitLocation${location}`);
     if (
       !profile.layers.some(
@@ -97,17 +118,64 @@ export function report(state) {
     const protectionFactor = state.chinks && chinksEligible(calc) ? 0.5 : 1;
     const initialConditions = requireConditions(state.dialog.actor, profile);
     const conditions = { ...initialConditions };
-    const sequence = [];
-    for (const [index, child] of calc._calculators.entries()) {
-      const stack = stackFor(
+    const allExposed = largeAreaLocations(state.dialog.actor);
+    const exposed = largeArea
+      ? (state.exposed ? allExposed.filter((where) => state.exposed.has(where)) : allExposed)
+      : [];
+    if (largeArea && exposed.length < 2) {
+      return {
+        error:
+          'Large-area injury needs at least two exposed hit locations here. If only one body part is exposed, choose that specific hit location in the ADD (B400).',
+      };
+    }
+    const managedLargeArea =
+      largeArea &&
+      ['Torso', ...exposed].some((where) =>
+        profile.layers.some(
+          (layer) => layer.allLocations || layer.locations.some((item) => item.where === where),
+        ),
+      );
+    const makeLocationStack = (where, currentConditions) =>
+      stackFor(
         profile,
-        location,
+        where,
         calc.damageType,
         divisor,
         multiplier,
-        conditions,
+        currentConditions,
         protectionFactor,
+      ) ??
+      scalarStackFor(
+        sheetDR(state.dialog.actor, where, calc.damageType),
+        divisor,
+        multiplier,
+        `Sheet DR: ${where}`,
       );
+    const makeStack = (currentConditions) => {
+      if (!largeArea) {
+        return stackFor(
+          profile,
+          location,
+          calc.damageType,
+          divisor,
+          multiplier,
+          currentConditions,
+          protectionFactor,
+        );
+      }
+      if (!managedLargeArea) return null;
+      const torso = makeLocationStack('Torso', currentConditions);
+      const candidates = exposed.map((where) => ({
+        where,
+        stack: makeLocationStack(where, currentConditions),
+      }));
+      candidates.sort((a, b) => a.stack.rawDR - b.stack.rawDR);
+      const weakest = candidates[0];
+      return largeAreaStackFor(torso, weakest.stack, weakest.where);
+    };
+    const sequence = [];
+    for (const [index, child] of calc._calculators.entries()) {
+      const stack = makeStack(conditions);
       if (!stack) {
         if (!sequence.length)
           return { status: `No layers cover ${calc.hitLocation}. The ADD uses normal sheet DR.` };
@@ -138,7 +206,11 @@ export function report(state) {
           initialConditions,
           finalConditions: conditions,
           chinks: protectionFactor === 0.5,
-          status: `${state.override ? 'This ADD’s temporary' : 'Actor’s saved'} layers replace sheet DR at ${calc.hitLocation}.`,
+          largeArea,
+          exposed,
+          status: largeArea
+            ? `Large-area DR uses Torso and least-protected exposed location ${selected.stack.weakestLocation} (B400).`
+            : `${state.override ? 'This ADD’s temporary' : 'Actor’s saved'} layers replace sheet DR at ${calc.hitLocation}.`,
         }
       : { status: `No layers cover ${calc.hitLocation}. The ADD uses normal sheet DR.` };
   } catch (error) {
@@ -247,10 +319,14 @@ export function patchADD(NativeADD, openEditor) {
     panel.className = 'armour-add-panel';
     const current = report(state),
       review = reviewError(state);
-    const canUseChinks = chinksEligible(this._calculator);
+    const canUseChinks = chinksEligible(this._calculator),
+      isLargeArea = this._calculator.isExplosion || this._calculator.hitLocation === 'Large-Area',
+      exposureChoices = isLargeArea ? largeAreaLocations(this.actor) : [],
+      selectedExposure = state.exposed ?? new Set(exposureChoices);
     panel.innerHTML = `<strong>Armour Layers</strong>
       <label><input type="checkbox" data-use-layers ${state.useLayers ? 'checked' : ''}> Use layered DR in this ADD</label>
       ${canUseChinks ? `<label><input type="checkbox" data-armour-chinks ${state.chinks ? 'checked' : ''} data-help="Use only when this attack successfully targeted a chink or weak point under B400. Layered DR is halved, cumulative with armour divisors."> Chinks / weak point (DR ×½)</label>` : ''}
+      ${isLargeArea ? `<details class="armour-exposure"><summary>Large-area exposure: ${selectedExposure.size} location${selectedExposure.size === 1 ? '' : 's'}</summary><p>B400 uses Torso DR averaged with the least-protected exposed location. For explosions or cones, untick locations not facing or exposed to the attack.</p><div>${exposureChoices.map((where) => `<label><input type="checkbox" data-armour-exposed value="${esc(where)}" ${selectedExposure.has(where) ? 'checked' : ''}> ${esc(where)}</label>`).join('')}</div></details>` : ''}
       ${review ? `<p role="alert" class="armour-error">${esc(review)}</p>` : ''}
       ${current.stack ? `<p>${esc(current.status)}</p><details><summary>Layer breakdown: DR ${current.stack.rawDR} → effective DR ${current.stack.effectiveDR}</summary>${reportHTML(state)}</details>` : reportHTML(state)}
       <div class="armour-add-actions"><button type="button" data-edit="saved">Edit actor’s Armour Layers</button><button type="button" data-edit="temporary">Adjust for this ADD only</button>${state.override ? '<button type="button" data-edit="reset">Reload saved layers</button>' : ''}</div>
@@ -265,6 +341,14 @@ export function patchADD(NativeADD, openEditor) {
       state.chinks = ev.currentTarget.checked;
       this.render(false);
     });
+    for (const input of panel.querySelectorAll('[data-armour-exposed]')) {
+      input.addEventListener('change', () => {
+        state.exposed = new Set(
+          [...panel.querySelectorAll('[data-armour-exposed]:checked')].map((item) => item.value),
+        );
+        this.render(false);
+      });
+    }
     for (const button of panel.querySelectorAll('[data-edit]')) {
       button.disabled = !canEdit(this.actor, game.user);
       button.addEventListener('click', () => {
@@ -297,9 +381,10 @@ export function patchADD(NativeADD, openEditor) {
       }
       // Keep the location chooser's DR consistent with the configured profile.
       const profile = state.override ?? readProfile(this.actor);
+      const conditions = requireConditions(this.actor, validateProfile(profile));
       for (const input of root.querySelectorAll('input[name="hitlocation"]')) {
         const row = input.closest('label')?.parentElement;
-        const value = stackFor(profile, input.value, this._calculator.damageType, 1);
+        const value = stackFor(profile, input.value, this._calculator.damageType, 1, 1, conditions);
         if (value && row?.nextElementSibling?.nextElementSibling)
           row.nextElementSibling.nextElementSibling.textContent = String(value.rawDR);
       }
