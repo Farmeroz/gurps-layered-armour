@@ -257,7 +257,9 @@ export function reportHTML(state) {
           trace.rows
             .map((row) => {
               const actualLoss =
-                row.condition == null ? row.depletionLoss : Math.min(row.condition, row.depletionLoss);
+                row.condition == null
+                  ? row.depletionLoss
+                  : Math.min(row.condition, row.depletionLoss);
               const condition =
                 row.depletion === 'none'
                   ? '—'
