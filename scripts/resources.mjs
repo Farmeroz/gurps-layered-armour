@@ -70,12 +70,13 @@ function degradingLayers(store) {
 }
 
 function nextSlot(root, reserved) {
-  let n = Math.max(
-    -1,
-    ...Object.keys(root)
-      .filter((key) => /^\d+$/.test(key))
-      .map(Number),
-  ) + 1;
+  let n =
+    Math.max(
+      -1,
+      ...Object.keys(root)
+        .filter((key) => /^\d+$/.test(key))
+        .map(Number),
+    ) + 1;
   while (reserved.has(String(n).padStart(4, '0'))) n++;
   return String(n).padStart(4, '0');
 }
