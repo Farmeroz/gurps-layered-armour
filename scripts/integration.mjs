@@ -300,6 +300,14 @@ export function patchADD(NativeADD, openEditor) {
     );
   register('getData', async function (wrapped, ...args) {
     const state = stateFor(this);
+    const calc = this._calculator;
+    if (calc.isExplosion && calc.hitLocation !== 'Large-Area') {
+      state.preExplosionLocation ??= calc.hitLocation;
+      calc.hitLocation = 'Large-Area';
+    } else if (!calc.isExplosion && state.preExplosionLocation && calc.hitLocation === 'Large-Area') {
+      calc.hitLocation = state.preExplosionLocation;
+      state.preExplosionLocation = null;
+    }
     if (report(state).stack || report(state).error) {
       this.isSimpleDialog = false;
       if (!state.expanded) {
