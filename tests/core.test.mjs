@@ -183,7 +183,6 @@ test('ablative loss through chinks equals only damage actually stopped', () => {
   assert.equal(trace.rows[0].depletionLoss, 2);
 });
 
-
 test('large-area DR averages torso and least protection before applying divisors', () => {
   const torso = stackFor(profile(layer(10)), 'Torso', 'cr', 2);
   const weak = scalarStackFor(2, 2, 1, 'Sheet DR: Left Arm');
