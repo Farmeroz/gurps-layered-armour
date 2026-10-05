@@ -256,12 +256,14 @@ export function reportHTML(state) {
       <table><thead><tr><th>Outer → inner</th><th>DR</th><th>Hard.</th><th>Divisor</th><th>Effective DR*</th><th>Damage in → out</th><th>Condition</th></tr></thead><tbody>` +
           trace.rows
             .map((row) => {
+              const actualLoss =
+                row.condition == null ? row.depletionLoss : Math.min(row.condition, row.depletionLoss);
               const condition =
                 row.depletion === 'none'
                   ? '—'
                   : row.condition == null
                     ? row.depletion
-                    : `${row.condition} → ${Math.max(0, row.condition - row.depletionLoss)} (-${row.depletionLoss})`;
+                    : `${row.condition} → ${Math.max(0, row.condition - actualLoss)} (-${actualLoss})`;
               return `<tr><td>${esc(row.name)}${row.flexible ? ' (flexible)' : ''}${row.depletion !== 'none' ? ` (${esc(row.depletion)})` : ''}</td><td>${row.dr}</td><td>${row.hardened}</td><td>${row.divisor === -1 ? '∞' : row.divisor}</td><td>${row.effective}</td><td>${row.incoming} → ${row.outgoing}</td><td>${esc(condition)}</td></tr>`;
             })
             .join('') +
