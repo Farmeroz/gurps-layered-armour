@@ -257,7 +257,8 @@ export function stackFor(
           : null;
       const dr = conditionedLayerDR(layer, where, type, condition);
       const effectiveDivisor = hardenedDivisor(divisor, layer.hardened);
-      const exact = effectiveDivisor === -1 ? 0 : (dr * multiplier * protectionFactor) / effectiveDivisor;
+      const exact =
+        effectiveDivisor === -1 ? 0 : (dr * multiplier * protectionFactor) / effectiveDivisor;
       const before = Math.floor(exactTotal + 1e-9);
       exactTotal += exact;
       rawTotal += dr;
