@@ -8,6 +8,7 @@
   "scripts/help.mjs",
   "scripts/integration.mjs",
   "scripts/log.mjs",
+  "scripts/resources.mjs",
   "scripts/main.mjs",
   "scripts/menus.mjs",
   "scripts/tooltip-engine.mjs",
