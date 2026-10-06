@@ -16,8 +16,8 @@
     "directory": "manual-add",
     "environment": "MANUAL_ADD_SOURCE",
     "repository": "Farmeroz/gurps-manual-add",
-    "commit": "74af8f7ea7736cb5e095364ebdd64785258674c7",
-    "version": "0.1.1",
-    "files": ["module.json", "scripts/core.mjs", "scripts/dialog.mjs"]
+    "commit": "ddeb6ac80946f59d327d97167c2a335811edc28f",
+    "version": "0.3.0-rc4",
+    "files": ["module.json", "scripts/core.mjs", "scripts/dialog.mjs", "scripts/log.mjs"]
   }
 ]
