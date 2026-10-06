@@ -2,7 +2,19 @@
 
 A separate Foundry VTT module with a player-facing **Armour Layers** window. It saves ordered armour on an actor and supplies layered DR to GGA's normal Apply Damage Dialog (ADD), including the ADD opened by GURPS Manual Damage.
 
-For **Foundry VTT 14 and GURPS Game Aid (GGA) 0.18.x**. Manual Damage is optional.
+For **Foundry VTT 14 and GURPS Game Aid (GGA) 0.18.x**. **libWrapper must be installed and enabled.** Manual Damage is optional.
+
+## Quick start for players and GMs
+
+1. Right-click your actor in the Actors directory and choose **Armour Layers**, or select its token and enter `/armour`.
+2. Add or import the layers, check coverage and DR, and arrange them outermost first. Include all protection at configured locations; these values replace the sheet's combined DR there.
+3. Choose **Ablative** or **Semi-Ablative** only for layers that use those GURPS 4e rules. Enable the set, make it active and save.
+4. Open a damage ADD. Review the Armour Layers breakdown, then use **Apply Injury**. Merely opening the window does not damage armour or the actor.
+5. Inspect degrading armour in the actor's **Armour: layer name** Resource Trackers. Restore condition there when armour is repaired or replaced.
+
+### What is new in 0.3.0?
+
+Ablative/Semi-Ablative layers have visible condition trackers and degrade sequentially across hits. The ADD includes explained Chinks controls, large-area exposure choices and explosion protection, while retaining native GGA injury handling. Manual Damage 0.3.0 exposes these attack contexts through ordinary `/add` → **Attack options**.
 
 ## Armour sets and equipment
 
@@ -41,6 +53,8 @@ Export/import also works in **Adjust for this ADD only**. **Use for this ADD** c
 3. Open your GURPS world, enable **GURPS Layered Armour** in **Manage Modules**, and reload the world.
 
 Manual Damage is optional. If you already use it, keep it enabled alongside this module. No character sheet files or system files need editing. For a manual installation, download the versioned ZIP from [GitHub Releases](https://github.com/Farmeroz/gurps-layered-armour/releases).
+
+**Moving from an rc test build:** install using the stable manifest above; rc manifests are pinned to their particular test release. Confirm **0.3.0** in Manage Modules, keep libWrapper enabled, and reload every connected client. Update Manual Damage to **0.3.0** if you use it. Existing actor armour data remains in place.
 
 ## Open the Armour Layers window
 
@@ -94,6 +108,8 @@ The editor shows imported DR as a reference, including slash strings and structu
 
 A degrading layer keeps its configured DR unchanged and stores its current condition in a normal, visible GGA Resource Tracker named **Armour: _layer name_**. Players and GMs can therefore see armour condition on the actor outside the ADD and can restore the tracker when armour is repaired, replenished or replaced.
 
+Changing degradation back to **None** and saving removes that layer's managed condition tracker. This is different from repairing degrading armour: restore its tracker value when repairing it, and retain its degradation mode.
+
 - **Ablative** DR loses one point of condition per point of basic damage that the layer actually stops.
 - **Semi-Ablative** DR loses one point per full 10 points of basic damage that actually reach that layer.
 - An inner degrading layer loses nothing when an outer layer stops the attack.
@@ -112,7 +128,7 @@ Open a normal damage ADD, or use `/add` if Manual Damage is installed. The **Arm
 - **Adjust for this ADD only** opens a separate editor. Its changes remain only in this ADD, including Apply Multiple, and do not update actor flags or carry to another token in a Manual Damage queue.
 - **Reload saved layers** discards the temporary stack and uses the actor's current saved profile.
 - Turn off **Use layered DR in this ADD** to use the native controls for a reviewed exception.
-- For eligible piercing, impaling and tight-beam burning attacks, **Chinks / weak point** appears only when it is relevant. Tick it only after the attack successfully targeted a chink under B400.
+- **Chinks / weak point** stays visible, with an explanation when disabled. It is enabled for eligible piercing, impaling and tight-beam burning attacks to a single location. Tick it only after the attack successfully targeted a chink under B400.
 - For **Large-Area** or explosion damage, expand **Large-area exposure** only if the default exposed-location list needs adjustment. The module averages Torso DR with the least-protected exposed location as B400 directs.
 - Explosion collateral damage automatically uses Large-Area protection and ignores the attack's armour divisor under B414.
 - Use the lower **Apply Injury** controls to apply the calculated result. Native **Direct Apply** deliberately bypasses armour.
@@ -144,6 +160,15 @@ Saving retains the order, enabled state, locations and overrides. The editor rej
 Updates confined to actor system data do not alter these module flags. A character reimport that updates the existing actor and preserves unrelated flags should therefore retain the profile. Recreating an actor, restoring a full actor export or an importer that replaces/removes flags may not preserve it. Saved profiles do not automatically follow later equipment edits or renamed hit locations. Check coverage after a reimport or body-plan change.
 
 ## Support and licence
+
+### Common questions
+
+- **My sheet DR differs from the ADD.** Configured layer coverage replaces the sheet's combined DR at that location. Check the active set, enabled layers, coverage and current condition; do not add the sheet total as another layer.
+- **Where are large-area choices?** Select Large-Area or Explosion in the ADD (or Manual Damage's Attack options), then expand **Large-area exposure** in Armour Layers.
+- **The tracker did not change.** Previewing, rolling, skipping and cancelling do not apply armour damage. Use calculated **Apply Injury**; Direct Apply bypasses armour.
+- **A layer is blocking application.** Review imported or refreshed values and tick the layer's review confirmation, or disable that layer.
+- **Blast and fragments?** Apply blast damage separately. Manual Damage's fragmentation helper handles only fragments; review each actual hit in ADD.
+- **An unlinked NPC differs from its world actor.** Unlinked tokens have their own actor data and armour state. Edit the token you intend to affect.
 
 Report problems through [GitHub Issues](https://github.com/Farmeroz/gurps-layered-armour/issues). Released under the [MIT licence](LICENSE).
 
