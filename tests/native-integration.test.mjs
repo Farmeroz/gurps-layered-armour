@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { parseHTML } from 'linkedom';
 import { patchADD, stateFor, report, reviewError } from '../scripts/integration.mjs';
 import { newLayer } from '../scripts/core.mjs';
@@ -12,9 +13,9 @@ if (!source || !manual) {
   test('native GGA and Manual Damage integration (see README)', { skip: true }, () => {});
 } else {
   const { createManualDialogClass, RecipientSession } = await import(
-    path.join(manual, 'scripts/dialog.mjs')
+    pathToFileURL(path.join(manual, 'scripts/dialog.mjs'))
   );
-  const { collectRecipients } = await import(path.join(manual, 'scripts/core.mjs'));
+  const { collectRecipients } = await import(pathToFileURL(path.join(manual, 'scripts/core.mjs')));
   globalThis.document = parseHTML('<html><body></body></html>').document;
   const settingsText = fs.readFileSync(path.join(source, 'lib/miscellaneous-settings.js'), 'utf8');
   globalThis.Settings = Object.fromEntries(

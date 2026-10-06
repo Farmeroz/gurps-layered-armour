@@ -345,7 +345,8 @@ export function patchADD(NativeADD, openEditor) {
       selectedExposure = state.exposed ?? new Set(exposureChoices);
     panel.innerHTML = `<strong>Armour Layers</strong>
       <label><input type="checkbox" data-use-layers ${state.useLayers ? 'checked' : ''}> Use layered DR in this ADD</label>
-      ${canUseChinks ? `<label><input type="checkbox" data-armour-chinks ${state.chinks ? 'checked' : ''} data-help="Use only when this attack successfully targeted a chink or weak point under B400. Layered DR is halved, cumulative with armour divisors."> Chinks / weak point (DR ×½)</label>` : ''}
+      <label><input type="checkbox" data-armour-chinks ${state.chinks && canUseChinks ? 'checked' : ''} ${canUseChinks ? '' : 'disabled'} data-help="Use only when this attack successfully targeted a chink or weak point under B400. Layered DR is halved, cumulative with armour divisors."> Chinks / weak point (DR ×½)</label>
+      ${canUseChinks ? '' : '<small>Chinks requires impaling, piercing or tight-beam burning damage to a single location; it is unavailable for explosions and large-area attacks.</small>'}
       ${isLargeArea ? `<details class="armour-exposure"><summary>Large-area exposure: ${selectedExposure.size} location${selectedExposure.size === 1 ? '' : 's'}</summary><p>B400 uses Torso DR averaged with the least-protected exposed location. For explosions or cones, untick locations not facing or exposed to the attack.</p><div>${exposureChoices.map((where) => `<label><input type="checkbox" data-armour-exposed value="${esc(where)}" ${selectedExposure.has(where) ? 'checked' : ''}> ${esc(where)}</label>`).join('')}</div></details>` : ''}
       ${review ? `<p role="alert" class="armour-error">${esc(review)}</p>` : ''}
       ${current.stack ? `<p>${esc(current.status)}</p><details><summary>Layer breakdown: DR ${current.stack.rawDR} → effective DR ${current.stack.effectiveDR}</summary>${reportHTML(state)}</details>` : reportHTML(state)}
