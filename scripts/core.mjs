@@ -1,5 +1,6 @@
 export const ID = 'gurps-layered-armour';
 export const TYPES = ['cr', 'cut', 'imp', 'pi-', 'pi', 'pi+', 'pi++', 'burn', 'cor', 'tox', 'fat'];
+export const DEPLETION_TYPES = ['none', 'ablative', 'semi-ablative'];
 export const clone = (value) => JSON.parse(JSON.stringify(value));
 export const escapeHTML = (value) =>
   String(value ?? '').replace(
@@ -84,6 +85,17 @@ export const formatSplit = (value) =>
   Object.entries(value ?? {})
     .map(([key, dr]) => `${key}=${dr}`)
     .join('; ');
+function depletion(value) {
+  value = value ?? 'none';
+  if (!DEPLETION_TYPES.includes(value)) throw new Error('Unknown armour depletion type.');
+  return value;
+}
+function resourceId(value) {
+  if (value == null || value === '') return '';
+  if (typeof value !== 'string' || !/^[a-zA-Z0-9_-]{1,80}$/.test(value))
+    throw new Error('Invalid armour resource ID.');
+  return value;
+}
 function split(value) {
   if (!value || Array.isArray(value) || typeof value !== 'object')
     throw new Error('Invalid split DR.');
@@ -133,6 +145,8 @@ export function validateProfile(value) {
             : number(layer.dr, `${name} DR`),
         hardened: number(layer.hardened, `${name} Hardened`, 6),
         flexible: layer.kind === 'forcefield' ? false : !!layer.flexible,
+        depletion: depletion(layer.depletion),
+        resourceId: resourceId(layer.resourceId),
         split: split(layer.split),
         allLocations: !!layer.allLocations,
         locations: layer.locations.map((loc) => {
@@ -162,6 +176,8 @@ export function newLayer(locations) {
     dr: 0,
     hardened: 0,
     flexible: false,
+    depletion: 'none',
+    resourceId: '',
     split: {},
     allLocations: false,
     locations: [
@@ -176,6 +192,25 @@ export function layerDR(layer, where, type) {
   // Location DR supplies its own base; type overrides are inherited unless replaced.
   return loc?.split?.[type] ?? layer.split[type] ?? loc?.dr ?? layer.dr;
 }
+export function layerMaximumDR(layer) {
+  const values = [
+    layer.dr,
+    ...Object.values(layer.split ?? {}),
+    ...(layer.locations ?? []).flatMap((loc) => [
+      ...(loc.dr == null ? [] : [loc.dr]),
+      ...Object.values(loc.split ?? {}),
+    ]),
+  ].filter((value) => Number.isFinite(Number(value)));
+  return Math.max(0, ...values.map(Number));
+}
+export function conditionedLayerDR(layer, where, type, current = null) {
+  const nominal = layerDR(layer, where, type);
+  if (layer.depletion === 'none' || current == null) return nominal;
+  const maximum = layerMaximumDR(layer);
+  if (!Number.isFinite(Number(current)) || Number(current) < 0 || Number(current) > maximum)
+    throw new Error(`${layer.name} armour condition must be from 0 to ${maximum}.`);
+  return Math.max(0, nominal - (maximum - Number(current)));
+}
 export function hardenedDivisor(divisor, level) {
   if (divisor <= 1 && divisor !== -1) return divisor;
   if (!level) return divisor;
@@ -188,7 +223,15 @@ export function hardenedDivisor(divisor, level) {
     );
   return steps[Math.min(index + level, steps.length - 1)];
 }
-export function stackFor(profile, where, type, divisor = 1, multiplier = 1) {
+export function stackFor(
+  profile,
+  where,
+  type,
+  divisor = 1,
+  multiplier = 1,
+  conditions = {},
+  protectionFactor = 1,
+) {
   profile = validateProfile(profile);
   const managed = profile.enabled && profile.layers.some((layer) => covers(layer, where));
   if (profile.enabled && profile.layers.some((layer) => layer.enabled && layer.reviewRequired))
@@ -200,26 +243,43 @@ export function stackFor(profile, where, type, divisor = 1, multiplier = 1) {
     throw new Error('Invalid armour divisor.');
   if (!Number.isFinite(multiplier) || multiplier < 1)
     throw new Error('Invalid shotgun multiplier.');
+  if (!Number.isFinite(protectionFactor) || protectionFactor <= 0 || protectionFactor > 1)
+    throw new Error('Invalid armour protection factor.');
   let exactTotal = 0,
     rawTotal = 0;
   const rows = profile.layers
-    .filter((layer) => layer.enabled && covers(layer, where))
-    .map((layer) => {
-      const dr = layerDR(layer, where, type);
+    .map((layer, layerIndex) => ({ layer, layerIndex }))
+    .filter(({ layer }) => layer.enabled && covers(layer, where))
+    .map(({ layer, layerIndex }) => {
+      const configuredDR = layerDR(layer, where, type);
+      const condition =
+        layer.resourceId && Object.hasOwn(conditions, layer.resourceId)
+          ? conditions[layer.resourceId]
+          : null;
+      const dr = conditionedLayerDR(layer, where, type, condition);
       const effectiveDivisor = hardenedDivisor(divisor, layer.hardened);
-      const exact = effectiveDivisor === -1 ? 0 : (dr * multiplier) / effectiveDivisor;
+      const exact =
+        effectiveDivisor === -1 ? 0 : (dr * multiplier * protectionFactor) / effectiveDivisor;
       const before = Math.floor(exactTotal + 1e-9);
       exactTotal += exact;
       rawTotal += dr;
       // Round the combined protection once. Cumulative differences allocate the
       // rounded points in outside-to-inside order without losing DR per layer.
       return {
+        layerKey: `layer:${layerIndex}`,
+        layerIndex,
         name: layer.name,
         kind: layer.kind,
         flexible: layer.flexible,
         hardened: layer.hardened,
+        depletion: layer.depletion,
+        resourceId: layer.resourceId,
+        configuredDR,
+        condition,
         dr,
         divisor: effectiveDivisor,
+        multiplier,
+        protectionFactor,
         exact,
         effective: Math.floor(exactTotal + 1e-9) - before,
       };
@@ -229,6 +289,8 @@ export function stackFor(profile, where, type, divisor = 1, multiplier = 1) {
   if (rawTotal === 0 && divisor < 1 && divisor > 0) {
     effectiveDR = Math.floor(1 / divisor);
     rows.push({
+      layerKey: 'bare-dr-zero',
+      layerIndex: Number.MAX_SAFE_INTEGER,
       name: 'DR 0 vs fractional divisor (B379)',
       kind: 'natural',
       flexible: false,
@@ -241,6 +303,98 @@ export function stackFor(profile, where, type, divisor = 1, multiplier = 1) {
   }
   return { rows, rawDR: rawTotal, effectiveDR };
 }
+export function scalarStackFor(dr, divisor = 1, multiplier = 1, name = 'Sheet DR') {
+  dr = number(dr, name);
+  if (!(divisor > 0 || divisor === -1) || !Number.isFinite(divisor))
+    throw new Error('Invalid armour divisor.');
+  if (!Number.isFinite(multiplier) || multiplier < 1) throw new Error('Invalid damage multiplier.');
+  let effectiveDR = divisor === -1 ? 0 : Math.floor((dr * multiplier) / divisor);
+  const rows = [
+    {
+      layerKey: `native:${name}`,
+      layerIndex: Number.MAX_SAFE_INTEGER,
+      name,
+      kind: 'natural',
+      flexible: false,
+      hardened: 0,
+      depletion: 'none',
+      resourceId: '',
+      configuredDR: dr,
+      condition: null,
+      dr,
+      divisor,
+      multiplier,
+      protectionFactor: 1,
+      exact: divisor === -1 ? 0 : (dr * multiplier) / divisor,
+      effective: effectiveDR,
+    },
+  ];
+  if (dr === 0 && divisor < 1 && divisor > 0) {
+    effectiveDR = Math.floor(1 / divisor);
+    rows[0].exact = effectiveDR;
+    rows[0].effective = effectiveDR;
+  }
+  return { rows, rawDR: dr, effectiveDR };
+}
+
+export function largeAreaStackFor(torsoStack, weakestStack, weakestLocation = '') {
+  if (!torsoStack || !weakestStack) throw new Error('Large-area DR requires torso and exposed DR.');
+  const torso = new Map(torsoStack.rows.map((row) => [row.layerKey ?? row.name, row]));
+  const weak = new Map(weakestStack.rows.map((row) => [row.layerKey ?? row.name, row]));
+  const keys = [...new Set([...torso.keys(), ...weak.keys()])];
+  const seed = keys
+    .map((key) => {
+      const a = torso.get(key),
+        b = weak.get(key),
+        source = a ?? b;
+      return {
+        key,
+        source,
+        layerIndex: Math.min(
+          a?.layerIndex ?? Number.MAX_SAFE_INTEGER,
+          b?.layerIndex ?? Number.MAX_SAFE_INTEGER,
+        ),
+        dr: ((a?.dr ?? 0) + (b?.dr ?? 0)) / 2,
+        configuredDR: ((a?.configuredDR ?? 0) + (b?.configuredDR ?? 0)) / 2,
+      };
+    })
+    .sort((a, b) => a.layerIndex - b.layerIndex);
+  let rawExact = 0,
+    exactTotal = 0;
+  const rows = seed.map(({ key, source, layerIndex, dr, configuredDR }) => {
+    const rawBefore = Math.ceil(rawExact - 1e-9);
+    rawExact += dr;
+    const rawAllocated = Math.ceil(rawExact - 1e-9) - rawBefore;
+    const divisor = source.divisor;
+    // B400 rounds the averaged location DR up before it protects. Allocate that
+    // rounded DR across the averaged layers first, then apply each layer's own
+    // Hardened-adjusted divisor.
+    const exact =
+      divisor === -1
+        ? 0
+        : (rawAllocated * (source.multiplier ?? 1) * (source.protectionFactor ?? 1)) / divisor;
+    const before = Math.floor(exactTotal + 1e-9);
+    exactTotal += exact;
+    return {
+      ...source,
+      layerKey: key,
+      layerIndex,
+      configuredDR,
+      dr,
+      largeAreaAllocatedDR: rawAllocated,
+      exact,
+      effective: Math.floor(exactTotal + 1e-9) - before,
+    };
+  });
+  return {
+    rows,
+    rawDR: Math.ceil(rawExact - 1e-9),
+    effectiveDR: Math.floor(exactTotal + 1e-9),
+    largeArea: true,
+    weakestLocation,
+  };
+}
+
 export function traceDamage(stack, damage, type) {
   let remaining = damage,
     flexIncoming = null,
@@ -251,7 +405,14 @@ export function traceDamage(stack, damage, type) {
     else if (flexIncoming === null) flexIncoming = remaining;
     remaining = Math.max(0, remaining - row.effective);
     if (incoming > 0 && remaining === 0 && !stopped) stopped = { row, flexIncoming };
-    return { ...row, incoming, outgoing: remaining };
+    const stoppedHere = incoming - remaining;
+    const depletionLoss =
+      incoming <= 0 || row.depletion === 'none'
+        ? 0
+        : row.depletion === 'ablative'
+          ? stoppedHere
+          : Math.floor(incoming / 10);
+    return { ...row, incoming, outgoing: remaining, stopped: stoppedHere, depletionLoss };
   });
   const threshold =
     type === 'cr' ? 5 : ['cut', 'imp', 'pi-', 'pi', 'pi+', 'pi++'].includes(type) ? 10 : 0;

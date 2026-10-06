@@ -6,8 +6,12 @@ import {
   validateProfile,
   parseSplit,
   stackFor,
+  scalarStackFor,
+  largeAreaStackFor,
   traceDamage,
   hardenedDivisor,
+  layerMaximumDR,
+  conditionedLayerDR,
   canEdit,
 } from '../scripts/core.mjs';
 const layer = (dr, props = {}) => ({ ...newLayer(['Torso']), dr, ...props });
@@ -83,6 +87,15 @@ test('consecutive flexible layers combine for blunt trauma; types and penetratio
 test('shotgun multiplier applies to DR before divisors', () => {
   assert.equal(stackFor(profile(layer(3), layer(2)), 'Torso', 'pi', 2, 4).effectiveDR, 10);
 });
+test('close-range shotgun DR multiplier is consumed by ablative armour for that hit', () => {
+  const armour = layer(3, { depletion: 'ablative', resourceId: 'vest' });
+  const first = traceDamage(stackFor(profile(armour), 'Torso', 'pi', 1, 4, { vest: 3 }), 10, 'pi');
+  assert.equal(first.penetrating, 0);
+  assert.equal(first.rows[0].depletionLoss, 10);
+  const second = traceDamage(stackFor(profile(armour), 'Torso', 'pi', 1, 4, { vest: 0 }), 10, 'pi');
+  assert.equal(second.penetrating, 10);
+});
+
 test('validation rejects malformed flags and ambiguous slash DR; forcefields cannot be flexible', () => {
   assert.throws(() => validateProfile({ schema: 2, layers: [] }));
   for (const dr of [-1, NaN, Infinity, '4/2', '', 0.5])
@@ -96,4 +109,103 @@ test('validation rejects malformed flags and ambiguous slash DR; forcefields can
   );
   assert.equal(canEdit({ isOwner: true }, { isGM: false }), true);
   assert.equal(canEdit({ isOwner: false }, { isGM: false }), false);
+});
+
+test('ablative DR loses only damage actually stopped after divisors', () => {
+  const ablative = layer(10, { depletion: 'ablative', resourceId: 'vest' });
+  const stack = stackFor(profile(ablative), 'Torso', 'cr', 2, 1, { vest: 10 });
+  const trace = traceDamage(stack, 10, 'cr');
+  assert.equal(stack.effectiveDR, 5);
+  assert.equal(trace.penetrating, 5);
+  assert.equal(trace.rows[0].stopped, 5);
+  assert.equal(trace.rows[0].depletionLoss, 5);
+});
+
+test('semi-ablative DR loses one point per full 10 incoming basic damage', () => {
+  const semi = layer(12, { depletion: 'semi-ablative', resourceId: 'vest' });
+  for (const divisor of [1, 2, 5]) {
+    const trace = traceDamage(
+      stackFor(profile(semi), 'Torso', 'cr', divisor, 1, { vest: 12 }),
+      26,
+      'cr',
+    );
+    assert.equal(trace.rows[0].depletionLoss, 2);
+  }
+});
+
+test('inner degrading layers are untouched when outer armour stops the attack', () => {
+  const stack = stackFor(
+    profile(layer(20), layer(12, { depletion: 'semi-ablative', resourceId: 'inner' })),
+    'Torso',
+    'cr',
+    1,
+    1,
+    { inner: 12 },
+  );
+  const trace = traceDamage(stack, 15, 'cr');
+  assert.equal(trace.rows[0].outgoing, 0);
+  assert.equal(trace.rows[1].incoming, 0);
+  assert.equal(trace.rows[1].depletionLoss, 0);
+});
+
+test('inner semi-ablative loss uses only damage reaching that layer', () => {
+  const stack = stackFor(
+    profile(layer(8), layer(12, { depletion: 'semi-ablative', resourceId: 'inner' })),
+    'Torso',
+    'cr',
+    1,
+    1,
+    { inner: 12 },
+  );
+  const trace = traceDamage(stack, 26, 'cr');
+  assert.equal(trace.rows[1].incoming, 18);
+  assert.equal(trace.rows[1].depletionLoss, 1);
+});
+
+test('condition trackers reduce all protection values by shared layer degradation', () => {
+  const armour = layer(12, {
+    depletion: 'ablative',
+    resourceId: 'plate',
+    split: { cut: 8 },
+    locations: [{ where: 'Torso', dr: 10, split: {} }],
+  });
+  assert.equal(layerMaximumDR(armour), 12);
+  assert.equal(conditionedLayerDR(armour, 'Torso', 'cr', 9), 7);
+  assert.equal(conditionedLayerDR(armour, 'Torso', 'cut', 9), 5);
+  assert.equal(stackFor(profile(armour), 'Torso', 'cr', 1, 1, { plate: 9 }).rawDR, 7);
+});
+
+test('chinks halve layered DR cumulatively with armour divisors', () => {
+  const stack = stackFor(profile(layer(10)), 'Torso', 'pi', 2, 1, {}, 0.5);
+  assert.equal(stack.rawDR, 10);
+  assert.equal(stack.effectiveDR, 2);
+  assert.equal(traceDamage(stack, 10, 'pi').penetrating, 8);
+});
+
+test('ablative loss through chinks equals only damage actually stopped', () => {
+  const armour = layer(10, { depletion: 'ablative', resourceId: 'plate' });
+  const trace = traceDamage(
+    stackFor(profile(armour), 'Torso', 'pi', 2, 1, { plate: 10 }, 0.5),
+    10,
+    'pi',
+  );
+  assert.equal(trace.rows[0].depletionLoss, 2);
+});
+
+test('large-area DR averages torso and least protection before applying divisors', () => {
+  const torso = stackFor(profile(layer(10)), 'Torso', 'cr', 2);
+  const weak = scalarStackFor(2, 2, 1, 'Sheet DR: Left Arm');
+  const large = largeAreaStackFor(torso, weak, 'Left Arm');
+  assert.equal(large.rawDR, 6);
+  assert.equal(large.effectiveDR, 3);
+  assert.equal(large.weakestLocation, 'Left Arm');
+});
+
+test('large-area ablative loss reflects only its averaged contribution', () => {
+  const armour = layer(10, { depletion: 'ablative', resourceId: 'vest' });
+  const torso = stackFor(profile(armour), 'Torso', 'cr', 1, 1, { vest: 10 });
+  const weak = scalarStackFor(0, 1, 1, 'Sheet DR: Left Arm');
+  const trace = traceDamage(largeAreaStackFor(torso, weak, 'Left Arm'), 10, 'cr');
+  assert.equal(trace.penetrating, 5);
+  assert.equal(trace.rows.find((row) => row.resourceId === 'vest').depletionLoss, 5);
 });

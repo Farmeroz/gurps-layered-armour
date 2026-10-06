@@ -29,8 +29,12 @@ function strictProfile(profile) {
   }
   // Rebuild known fields only; never merge imported objects into an actor.
   const clean = validateProfile(profile);
-  // Source references belong to an actor; portable sets contain armour values only.
-  for (const layer of clean.layers) delete layer.source;
+  // Source and condition-tracker references belong to an actor; portable sets
+  // contain armour rules and values only. A new tracker is linked on save.
+  for (const layer of clean.layers) {
+    delete layer.source;
+    layer.resourceId = '';
+  }
   return clean;
 }
 export function exportSetup(profile) {

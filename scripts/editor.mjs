@@ -23,6 +23,7 @@ import {
 
 import { equipmentOn, layerFromEquipment, sourceStatus } from './equipment.mjs';
 import { attachHelp } from './help.mjs';
+import { armourTrackers, trackerSyncUpdate } from './resources.mjs';
 
 export function createEditorClass(Base) {
   return class ArmourLayersEditor extends Base {
@@ -62,6 +63,7 @@ export function createEditorClass(Base) {
       return this.options.title;
     }
     getData() {
+      const trackers = armourTrackers(this.actor);
       return {
         importNotice: this.importNotice,
         setName: this.store.sets.find((set) => set.id === this.selectedId).name,
@@ -103,6 +105,17 @@ export function createEditorClass(Base) {
             value,
             selected: layer.kind === value,
           })),
+          depletionModes: [
+            ['none', 'None'],
+            ['ablative', 'Ablative'],
+            ['semi-ablative', 'Semi-Ablative'],
+          ].map(([value, label]) => ({
+            value,
+            label,
+            selected: layer.depletion === value,
+          })),
+          condition: layer.resourceId ? trackers.get(layer.resourceId) : null,
+          needsConditionTracker: layer.depletion !== 'none' && !layer.resourceId,
           coverage: this.locations.map((where) => {
             const loc = layer.locations.find((x) => x.where === where);
             return {
@@ -130,6 +143,14 @@ export function createEditorClass(Base) {
           throw new Error(
             'Select at least one protected location before marking this layer reviewed.',
           );
+        const depletion = value('depletion');
+        const resourceId =
+          depletion === 'none'
+            ? ''
+            : previous?.resourceId ||
+              (this.temporary
+                ? ''
+                : (foundry.utils.randomID?.() ?? Math.random().toString(36).slice(2)));
         return {
           ...(previous?.source ? { source: clone(previous.source) } : {}),
           ...(reviewRequired !== undefined ? { reviewRequired } : {}),
@@ -139,6 +160,8 @@ export function createEditorClass(Base) {
           kind: value('kind'),
           hardened: value('hardened'),
           flexible: checked('flexible'),
+          depletion,
+          resourceId,
           allLocations: checked('allLocations'),
           split: parseSplit(value('split')),
           locations: [...card.querySelectorAll('[data-location]')]
@@ -445,7 +468,11 @@ export function createEditorClass(Base) {
           selected.profile = value;
           selected.name = root.querySelector('[data-set-name]').value.trim();
           const store = normaliseStore(this.store);
-          await this.actor.setFlag(ID, 'profile', store);
+          const trackerUpdate = trackerSyncUpdate(this.actor, store);
+          await this.actor.update({
+            [`flags.${ID}.profile`]: store,
+            ...trackerUpdate,
+          });
           this.original = JSON.stringify(readStore(this.actor));
         }
         await this.onSave?.(this.temporary ? clone(value) : readProfile(this.actor));

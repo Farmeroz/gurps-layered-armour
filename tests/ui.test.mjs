@@ -11,7 +11,9 @@ Handlebars.registerHelper('disabled', (value) => (value ? 'disabled' : ''));
 const template = Handlebars.compile(
   fs.readFileSync(new URL('../templates/editor.hbs', import.meta.url), 'utf8'),
 );
-globalThis.foundry = { utils: { mergeObject: (a, b) => ({ ...a, ...b }) } };
+globalThis.foundry = {
+  utils: { mergeObject: (a, b) => ({ ...a, ...b }), randomID: () => 'resource-id' },
+};
 globalThis.game = { user: { isGM: false }, actors: new Map() };
 globalThis.ui = { notifications: { info() {}, error() {} } };
 class Base {
@@ -34,7 +36,7 @@ const Editor = createEditorClass(Base);
 function actor(id = 'a') {
   let stored = emptyProfile(),
     writes = 0;
-  return {
+  const a = {
     id,
     uuid: `Actor.${id}`,
     name: 'Ada <script>alert(1)</script>',
@@ -44,12 +46,36 @@ function actor(id = 'a') {
         a: { where: 'Torso', dr: '4/2', split: { cr: 2 } },
         b: { where: 'Skull', dr: '2' },
       },
+      additionalresources: { tracker: {} },
     },
     getFlag: () => structuredClone(stored),
     setFlag: async (scope, key, value) => {
       assert.equal(scope, ID);
       assert.equal(key, 'profile');
       stored = structuredClone(value);
+      writes++;
+    },
+    update: async (changes) => {
+      for (const [path, value] of Object.entries(changes)) {
+        if (path === `flags.${ID}.profile`) {
+          stored = structuredClone(value);
+          continue;
+        }
+        const parts = path.split('.');
+        const deletePart = parts.findIndex((part) => part.startsWith('-='));
+        if (deletePart >= 0) {
+          let target = a;
+          for (const part of parts.slice(0, deletePart)) target = target[part];
+          delete target[parts[deletePart].slice(2)];
+          continue;
+        }
+        let target = a;
+        for (const part of parts.slice(0, -1)) {
+          if (!target[part]) target[part] = {};
+          target = target[part];
+        }
+        target[parts.at(-1)] = structuredClone(value);
+      }
       writes++;
     },
     setStored(value) {
@@ -59,6 +85,7 @@ function actor(id = 'a') {
       return writes;
     },
   };
+  return a;
 }
 function form(editor) {
   const { document, window } = parseHTML(`<html><body>${template(editor.getData())}</body></html>`);

@@ -3,18 +3,47 @@ import {
   readProfile,
   validateProfile,
   stackFor,
+  scalarStackFor,
+  largeAreaStackFor,
   traceDamage,
   canEdit,
   escapeHTML as esc,
   elementOf,
 } from './core.mjs';
+import { requireConditions, depletionPlan, applyDepletion } from './resources.mjs';
 
 const states = new WeakMap();
 const patched = Symbol.for('gurps-layered-armour.addPatched');
+function chinksEligible(calc) {
+  return (
+    !calc.isExplosion &&
+    calc.hitLocation !== 'Large-Area' &&
+    (['imp', 'pi-', 'pi', 'pi+', 'pi++'].includes(calc.damageType) ||
+      (calc.damageType === 'burn' && calc.damageModifier === 'tbb'))
+  );
+}
+function largeAreaLocations(actor) {
+  const entries = actor.hitLocationsWithDR ?? [];
+  const filtered = entries.filter((entry) => !Array.isArray(entry.roll) || entry.roll.length > 0);
+  return [
+    ...new Set((filtered.length ? filtered : entries).map((entry) => entry.where).filter(Boolean)),
+  ];
+}
+function sheetDR(actor, where, type) {
+  const entries = actor.hitLocationsWithDR ?? [];
+  let entry = entries.find((item) => item.where === where);
+  if (!entry) {
+    const localised = globalThis.game?.i18n?.localize?.(`GURPS.hitLocation${where}`);
+    if (localised) entry = entries.find((item) => item.where === localised);
+  }
+  const value = entry?.getDR?.(type) ?? entry?.dr;
+  const dr = Number(value);
+  return Number.isFinite(dr) && dr >= 0 ? Math.floor(dr) : 0;
+}
 export function stateFor(dialog) {
   let state = states.get(dialog);
   if (state) return state;
-  state = { dialog, useLayers: true, override: null };
+  state = { dialog, useLayers: true, override: null, chinks: false, exposed: null };
   states.set(dialog, state);
   const calc = dialog._calculator;
   if (!calc || !Array.isArray(calc._calculators))
@@ -47,12 +76,14 @@ export function stateFor(dialog) {
     const { stack } = report(state);
     return stack ? stack.rows.some((row) => row.flexible) : native();
   });
-  for (const child of calc._calculators) {
+  for (const [index, child] of calc._calculators.entries()) {
+    wrap(child, 'penetratingDamage', (native) => {
+      const item = report(state).sequence?.[index];
+      return item ? item.trace.penetrating : native();
+    });
     wrap(child, 'calculatedBluntTrauma', (native) => {
-      const { stack } = report(state);
-      return stack
-        ? traceDamage(stack, child.effectiveDamage, calc.damageType).bluntTrauma
-        : native();
+      const item = report(state).sequence?.[index];
+      return item ? item.trace.bluntTrauma : native();
     });
   }
   return state;
@@ -67,13 +98,14 @@ export function report(state) {
     if (!profile.enabled)
       return { status: 'No active armour profile. The ADD uses normal sheet DR.' };
     const calc = state.dialog._calculator;
-    if (['Large-Area', 'Random', 'User Entered'].includes(calc.hitLocation)) {
+    if (['Random', 'User Entered'].includes(calc.hitLocation)) {
       return {
         error:
-          'Choose a specific hit location, or turn off layered DR for this ADD and enter reviewed native DR. Automatic large-area and explosion armour calculations are not included in this release.',
+          'Choose a specific hit location, or turn off layered DR for this ADD and enter reviewed native DR.',
       };
     }
-    let location = calc.hitLocation;
+    const largeArea = calc.isExplosion || calc.hitLocation === 'Large-Area';
+    let location = largeArea ? 'Torso' : calc.hitLocation;
     const localised = globalThis.game?.i18n?.localize?.(`GURPS.hitLocation${location}`);
     if (
       !profile.layers.some(
@@ -85,11 +117,104 @@ export function report(state) {
     const divisor = !calc.useArmorDivisor || calc.isExplosion ? 1 : calc.armorDivisor || 1;
     const multiplier =
       calc.isShotgun && calc.shotgunRofMultiplier > 1 ? calc.shotgunDamageMultiplier : 1;
-    const stack = stackFor(profile, location, calc.damageType, divisor, multiplier);
-    return stack
+    const protectionFactor = state.chinks && chinksEligible(calc) ? 0.5 : 1;
+    const initialConditions = requireConditions(state.dialog.actor, profile);
+    const conditions = { ...initialConditions };
+    const allExposed = largeAreaLocations(state.dialog.actor);
+    const exposed = largeArea
+      ? state.exposed
+        ? allExposed.filter((where) => state.exposed.has(where))
+        : allExposed
+      : [];
+    if (largeArea && exposed.length < 2) {
+      return {
+        error:
+          'Large-area injury needs at least two exposed hit locations here. If only one body part is exposed, choose that specific hit location in the ADD (B400).',
+      };
+    }
+    const managedLargeArea =
+      largeArea &&
+      ['Torso', ...exposed].some((where) =>
+        profile.layers.some(
+          (layer) => layer.allLocations || layer.locations.some((item) => item.where === where),
+        ),
+      );
+    const makeLocationStack = (where, currentConditions) =>
+      stackFor(
+        profile,
+        where,
+        calc.damageType,
+        divisor,
+        multiplier,
+        currentConditions,
+        protectionFactor,
+      ) ??
+      scalarStackFor(
+        sheetDR(state.dialog.actor, where, calc.damageType),
+        divisor,
+        multiplier,
+        `Sheet DR: ${where}`,
+      );
+    const makeStack = (currentConditions) => {
+      if (!largeArea) {
+        return stackFor(
+          profile,
+          location,
+          calc.damageType,
+          divisor,
+          multiplier,
+          currentConditions,
+          protectionFactor,
+        );
+      }
+      if (!managedLargeArea) return null;
+      const torso = makeLocationStack('Torso', currentConditions);
+      const candidates = exposed.map((where) => ({
+        where,
+        stack: makeLocationStack(where, currentConditions),
+      }));
+      candidates.sort((a, b) => a.stack.rawDR - b.stack.rawDR);
+      const weakest = candidates[0];
+      return largeAreaStackFor(torso, weakest.stack, weakest.where);
+    };
+    const sequence = [];
+    for (const [index, child] of calc._calculators.entries()) {
+      const stack = makeStack(conditions);
+      if (!stack) {
+        if (!sequence.length)
+          return { status: `No layers cover ${calc.hitLocation}. The ADD uses normal sheet DR.` };
+        break;
+      }
+      const trace = traceDamage(stack, child.effectiveDamage, calc.damageType);
+      const before = { ...conditions };
+      for (const row of trace.rows) {
+        if (!row.resourceId || !row.depletionLoss) continue;
+        if (!Object.hasOwn(conditions, row.resourceId))
+          throw new Error(`${row.name} is missing its armour condition tracker.`);
+        conditions[row.resourceId] = Math.max(0, conditions[row.resourceId] - row.depletionLoss);
+      }
+      sequence.push({
+        index,
+        stack,
+        trace,
+        conditionsBefore: before,
+        conditionsAfter: { ...conditions },
+      });
+    }
+    const selected =
+      calc.viewId === 'all' ? sequence[0] : (sequence[Number(calc.viewId)] ?? sequence[0]);
+    return selected
       ? {
-          stack,
-          status: `${state.override ? 'This ADD’s temporary' : 'Actor’s saved'} layers replace sheet DR at ${calc.hitLocation}.`,
+          stack: selected.stack,
+          sequence,
+          initialConditions,
+          finalConditions: conditions,
+          chinks: protectionFactor === 0.5,
+          largeArea,
+          exposed,
+          status: largeArea
+            ? `Large-area DR uses Torso and least-protected exposed location ${selected.stack.weakestLocation} (B400).`
+            : `${state.override ? 'This ADD’s temporary' : 'Actor’s saved'} layers replace sheet DR at ${calc.hitLocation}.`,
         }
       : { status: `No layers cover ${calc.hitLocation}. The ADD uses normal sheet DR.` };
   } catch (error) {
@@ -101,11 +226,14 @@ export function reviewError(state) {
   if (result.error) return result.error;
   if (!result.stack) return '';
   const calc = state.dialog._calculator;
-  const children =
-    calc.viewId === 'all' ? calc._calculators : [calc._calculators[Number(calc.viewId)]];
-  for (const child of children.filter(Boolean)) {
-    const trace = traceDamage(result.stack, child.effectiveDamage, calc.damageType);
-    if (calc.useBluntTrauma && trace.review && child._bluntTrauma === null) return trace.review;
+  const items =
+    calc.viewId === 'all'
+      ? result.sequence
+      : [result.sequence?.[Number(calc.viewId)]].filter(Boolean);
+  for (const item of items ?? []) {
+    const child = calc._calculators[item.index];
+    if (calc.useBluntTrauma && item.trace.review && child?._bluntTrauma === null)
+      return item.trace.review;
   }
   return '';
 }
@@ -113,28 +241,39 @@ export function reportHTML(state) {
   const result = report(state),
     calc = state.dialog._calculator;
   if (!result.stack) return `<p>${esc(result.error ?? result.status)}</p>`;
-  const children =
-    calc.viewId === 'all' ? calc._calculators : [calc._calculators[Number(calc.viewId)]];
+  const items =
+    calc.viewId === 'all'
+      ? result.sequence
+      : [result.sequence?.[Number(calc.viewId)]].filter(Boolean);
   return (
-    `<div class="armour-report"><p>${esc(result.status)}</p><p><strong>DR ${result.stack.rawDR}; effective DR ${result.stack.effectiveDR}</strong>. Hardened applies per layer. Wounding follows penetration.</p>` +
-    children
-      .filter(Boolean)
-      .map((child, index) => {
-        const trace = traceDamage(result.stack, child.effectiveDamage, calc.damageType);
+    `<div class="armour-report"><p>${esc(result.status)}</p><p><strong>DR ${result.stack.rawDR}; effective DR ${result.stack.effectiveDR}</strong>. Hardened applies per layer.${result.chinks ? ' Chinks/weak point halves DR (B400).' : ''} Wounding follows penetration.</p>` +
+    (items ?? [])
+      .map((item) => {
+        const child = calc._calculators[item.index],
+          trace = item.trace;
         return (
-          `<p>Hit ${calc.viewId === 'all' ? index + 1 : Number(calc.viewId) + 1}: ${child.effectiveDamage} ${esc(calc.damageType)} → ${trace.penetrating} penetrating; calculated blunt trauma ${trace.bluntTrauma}${child._bluntTrauma !== null ? ` (override ${child._bluntTrauma})` : ''}.</p>
-      <table><thead><tr><th>Outer → inner</th><th>DR</th><th>Hard.</th><th>Divisor</th><th>Effective DR*</th><th>Damage in → out</th></tr></thead><tbody>` +
+          `<p>Hit ${item.index + 1}: ${child.effectiveDamage} ${esc(calc.damageType)} → ${trace.penetrating} penetrating; calculated blunt trauma ${trace.bluntTrauma}${child._bluntTrauma !== null ? ` (override ${child._bluntTrauma})` : ''}.</p>
+      <table><thead><tr><th>Outer → inner</th><th>DR</th><th>Hard.</th><th>Divisor</th><th>Effective DR*</th><th>Damage in → out</th><th>Condition</th></tr></thead><tbody>` +
           trace.rows
-            .map(
-              (row) =>
-                `<tr><td>${esc(row.name)}${row.flexible ? ' (flexible)' : ''}</td><td>${row.dr}</td><td>${row.hardened}</td><td>${row.divisor === -1 ? '∞' : row.divisor}</td><td>${row.effective}</td><td>${row.incoming} → ${row.outgoing}</td></tr>`,
-            )
+            .map((row) => {
+              const actualLoss =
+                row.condition == null
+                  ? row.depletionLoss
+                  : Math.min(row.condition, row.depletionLoss);
+              const condition =
+                row.depletion === 'none'
+                  ? '—'
+                  : row.condition == null
+                    ? row.depletion
+                    : `${row.condition} → ${Math.max(0, row.condition - actualLoss)} (-${actualLoss})`;
+              return `<tr><td>${esc(row.name)}${row.flexible ? ' (flexible)' : ''}${row.depletion !== 'none' ? ` (${esc(row.depletion)})` : ''}</td><td>${row.dr}</td><td>${row.hardened}</td><td>${row.divisor === -1 ? '∞' : row.divisor}</td><td>${row.effective}</td><td>${row.incoming} → ${row.outgoing}</td><td>${esc(condition)}</td></tr>`;
+            })
             .join('') +
           `</tbody></table>${trace.review ? `<p>${esc(trace.review)}</p>` : ''}`
         );
       })
       .join('') +
-    '<p>*Fractional protection is retained across layers and the total is rounded down once. Rows allocate the rounded protection in layer order.</p></div>'
+    '<p>*Fractional protection is retained across layers and the total is rounded down once. Rows allocate the rounded protection in layer order. Armour condition changes are previews until injury is applied.</p></div>'
   );
 }
 // Remove the native single-divisor explanatory formula when showing a layered
@@ -169,6 +308,18 @@ export function patchADD(NativeADD, openEditor) {
     );
   register('getData', async function (wrapped, ...args) {
     const state = stateFor(this);
+    const calc = this._calculator;
+    if (calc.isExplosion && calc.hitLocation !== 'Large-Area') {
+      state.preExplosionLocation ??= calc.hitLocation;
+      calc.hitLocation = 'Large-Area';
+    } else if (
+      !calc.isExplosion &&
+      state.preExplosionLocation &&
+      calc.hitLocation === 'Large-Area'
+    ) {
+      calc.hitLocation = state.preExplosionLocation;
+      state.preExplosionLocation = null;
+    }
     if (report(state).stack || report(state).error) {
       this.isSimpleDialog = false;
       if (!state.expanded) {
@@ -188,8 +339,15 @@ export function patchADD(NativeADD, openEditor) {
     panel.className = 'armour-add-panel';
     const current = report(state),
       review = reviewError(state);
+    const canUseChinks = chinksEligible(this._calculator),
+      isLargeArea = this._calculator.isExplosion || this._calculator.hitLocation === 'Large-Area',
+      exposureChoices = isLargeArea ? largeAreaLocations(this.actor) : [],
+      selectedExposure = state.exposed ?? new Set(exposureChoices);
     panel.innerHTML = `<strong>Armour Layers</strong>
       <label><input type="checkbox" data-use-layers ${state.useLayers ? 'checked' : ''}> Use layered DR in this ADD</label>
+      <label><input type="checkbox" data-armour-chinks ${state.chinks && canUseChinks ? 'checked' : ''} ${canUseChinks ? '' : 'disabled'} data-help="Use only when this attack successfully targeted a chink or weak point under B400. Layered DR is halved, cumulative with armour divisors."> Chinks / weak point (DR ×½)</label>
+      ${canUseChinks ? '' : '<small>Chinks requires impaling, piercing or tight-beam burning damage to a single location; it is unavailable for explosions and large-area attacks.</small>'}
+      ${isLargeArea ? `<details class="armour-exposure"><summary>Large-area exposure: ${selectedExposure.size} location${selectedExposure.size === 1 ? '' : 's'}</summary><p>B400 uses Torso DR averaged with the least-protected exposed location. For explosions or cones, untick locations not facing or exposed to the attack.</p><div>${exposureChoices.map((where) => `<label><input type="checkbox" data-armour-exposed value="${esc(where)}" ${selectedExposure.has(where) ? 'checked' : ''}> ${esc(where)}</label>`).join('')}</div></details>` : ''}
       ${review ? `<p role="alert" class="armour-error">${esc(review)}</p>` : ''}
       ${current.stack ? `<p>${esc(current.status)}</p><details><summary>Layer breakdown: DR ${current.stack.rawDR} → effective DR ${current.stack.effectiveDR}</summary>${reportHTML(state)}</details>` : reportHTML(state)}
       <div class="armour-add-actions"><button type="button" data-edit="saved">Edit actor’s Armour Layers</button><button type="button" data-edit="temporary">Adjust for this ADD only</button>${state.override ? '<button type="button" data-edit="reset">Reload saved layers</button>' : ''}</div>
@@ -200,6 +358,18 @@ export function patchADD(NativeADD, openEditor) {
       state.useLayers = ev.currentTarget.checked;
       this.render(false);
     });
+    panel.querySelector('[data-armour-chinks]')?.addEventListener('change', (ev) => {
+      state.chinks = ev.currentTarget.checked;
+      this.render(false);
+    });
+    for (const input of panel.querySelectorAll('[data-armour-exposed]')) {
+      input.addEventListener('change', () => {
+        state.exposed = new Set(
+          [...panel.querySelectorAll('[data-armour-exposed]:checked')].map((item) => item.value),
+        );
+        this.render(false);
+      });
+    }
     for (const button of panel.querySelectorAll('[data-edit]')) {
       button.disabled = !canEdit(this.actor, game.user);
       button.addEventListener('click', () => {
@@ -232,9 +402,10 @@ export function patchADD(NativeADD, openEditor) {
       }
       // Keep the location chooser's DR consistent with the configured profile.
       const profile = state.override ?? readProfile(this.actor);
+      const conditions = requireConditions(this.actor, validateProfile(profile));
       for (const input of root.querySelectorAll('input[name="hitlocation"]')) {
         const row = input.closest('label')?.parentElement;
-        const value = stackFor(profile, input.value, this._calculator.damageType, 1);
+        const value = stackFor(profile, input.value, this._calculator.damageType, 1, 1, conditions);
         if (value && row?.nextElementSibling?.nextElementSibling)
           row.nextElementSibling.nextElementSibling.textContent = String(value.rawDR);
       }
@@ -246,6 +417,8 @@ export function patchADD(NativeADD, openEditor) {
   });
   register('resolveInjury', async function (wrapped, keepOpen, injury, publicly, results = null) {
     const state = stateFor(this);
+    let depletion = null,
+      expected = null;
     if (results !== null) {
       const error = reviewError(state);
       if (error) {
@@ -254,14 +427,34 @@ export function patchADD(NativeADD, openEditor) {
       }
       if (!canEdit(this.actor, game.user))
         throw new Error('You no longer have permission to apply damage to this actor.');
-      if (report(state).stack) {
+      const calculated = report(state);
+      if (calculated.stack) {
+        // Recalculate here so repeated Apply Multiple operations see armour
+        // condition left by the previous application.
+        injury = this._calculator.pointsToApply;
+        depletion = depletionPlan(calculated.sequence.map((item) => item.trace));
+        expected = { ...calculated.initialConditions };
         const holder = document.createElement('div');
         holder.innerHTML = results;
         fixResults(holder, state);
         results = holder.innerHTML + reportHTML(state);
       }
     }
-    return wrapped(keepOpen, injury, publicly, results);
+    const outcome = await wrapped(keepOpen, injury, publicly, results);
+    if (depletion && Object.values(depletion).some(Boolean)) {
+      try {
+        await applyDepletion(this.actor, depletion, expected);
+      } catch (error) {
+        console.error(
+          'gurps-layered-armour | Injury applied but armour condition update failed.',
+          error,
+        );
+        ui.notifications.error(
+          `Injury was applied, but armour condition could not be updated: ${error.message} Adjust the armour Resource Tracker manually; do not reapply injury.`,
+        );
+      }
+    }
+    return outcome;
   });
   // Manual Damage renders a fresh native results table immediately before apply.
   // resolveInjury above attaches its matching armour audit inside the same chat

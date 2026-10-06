@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { parseHTML } from 'linkedom';
 import { patchADD, stateFor, report, reviewError } from '../scripts/integration.mjs';
 import { newLayer } from '../scripts/core.mjs';
@@ -12,9 +13,9 @@ if (!source || !manual) {
   test('native GGA and Manual Damage integration (see README)', { skip: true }, () => {});
 } else {
   const { createManualDialogClass, RecipientSession } = await import(
-    path.join(manual, 'scripts/dialog.mjs')
+    pathToFileURL(path.join(manual, 'scripts/dialog.mjs'))
   );
-  const { collectRecipients } = await import(path.join(manual, 'scripts/core.mjs'));
+  const { collectRecipients } = await import(pathToFileURL(path.join(manual, 'scripts/core.mjs')));
   globalThis.document = parseHTML('<html><body></body></html>').document;
   const settingsText = fs.readFileSync(path.join(source, 'lib/miscellaneous-settings.js'), 'utf8');
   globalThis.Settings = Object.fromEntries(
@@ -305,12 +306,137 @@ if (!source || !manual) {
     assert.match(messages[0].content, /Manual damage/);
     assert.match(messages[0].content, /effective DR 8/);
   });
+  test('ablative armour uses visible tracker state and depletes only after apply', async () => {
+    reset();
+    const a = layers(actor('ablative', 99), {
+      dr: 10,
+      depletion: 'ablative',
+      resourceId: 'vest',
+    });
+    a.system.additionalresources.tracker['0000'] = {
+      name: 'Armour: Vest',
+      alias: 'DR',
+      value: 10,
+      max: 10,
+      min: 0,
+      isDamageTracker: false,
+      gla: { kind: 'armour', resourceId: 'vest', version: 1 },
+    };
+    const d = await ready(new NativeADD(a, { damage: 10, damageType: 'cr', armorDivisor: 2 }));
+    assert.equal(d._calculator.effectiveDR, 5);
+    assert.equal(d._calculator.pointsToApply, 5);
+    assert.equal(a.system.additionalresources.tracker['0000'].value, 10);
+    await d.resolveInjury(true, d._calculator.pointsToApply, true, 'calculated result');
+    assert.equal(a.system.additionalresources.tracker['0000'].value, 5);
+    assert.equal(a.system.HP.value, 25);
+  });
+  test('multi-hit ablative armour is resolved sequentially within one ADD', async () => {
+    reset();
+    const a = layers(actor('burst', 99), {
+      dr: 8,
+      depletion: 'ablative',
+      resourceId: 'plate',
+    });
+    a.system.additionalresources.tracker['0000'] = {
+      name: 'Armour: Plate',
+      alias: 'DR',
+      value: 8,
+      max: 8,
+      min: 0,
+      isDamageTracker: false,
+      gla: { kind: 'armour', resourceId: 'plate', version: 1 },
+    };
+    const d = await ready(
+      new NativeADD(a, [
+        { damage: 6, damageType: 'cr', armorDivisor: 1 },
+        { damage: 6, damageType: 'cr', armorDivisor: 1 },
+      ]),
+    );
+    assert.deepEqual(
+      d._calculator._calculators.map((child) => child.penetratingDamage),
+      [0, 4],
+    );
+    assert.equal(d._calculator.pointsToApply, 4);
+    await d.resolveInjury(true, d._calculator.pointsToApply, true, 'calculated result');
+    assert.equal(a.system.additionalresources.tracker['0000'].value, 0);
+    assert.equal(a.system.HP.value, 26);
+  });
+  test('B400 chinks are contextual and cumulative with armour divisors', async () => {
+    reset();
+    const a = layers(actor('chinks', 99), { dr: 10 });
+    const d = await ready(new NativeADD(a, { damage: 10, damageType: 'pi', armorDivisor: 2 }));
+    assert.equal(d._calculator.effectiveDR, 5);
+    stateFor(d).chinks = true;
+    assert.equal(d._calculator.effectiveDR, 2);
+    assert.equal(d._calculator.pointsToApply, 8);
+    d._calculator.damageType = 'cr';
+    assert.equal(d._calculator.effectiveDR, 5);
+  });
+  test('B400 large-area DR averages configured torso with least exposed protection', async () => {
+    reset();
+    const a = layers(actor('large-area', 2), { dr: 10 });
+    const d = new NativeADD(a, { damage: 12, damageType: 'cr', armorDivisor: 2 });
+    d._calculator.hitLocation = 'Large-Area';
+    await ready(d);
+    assert.equal(d._calculator.DR, 6);
+    assert.equal(d._calculator.effectiveDR, 3);
+    assert.equal(d._calculator.pointsToApply, 9);
+    assert.equal(report(stateFor(d)).stack.weakestLocation, 'Vitals');
+  });
+  test('collateral explosion automatically uses large-area location and ignores attack AD', async () => {
+    reset();
+    const a = layers(actor('explosion', 2), { dr: 10 });
+    const d = new NativeADD(a, {
+      damage: 30,
+      damageType: 'cr',
+      armorDivisor: 5,
+      hitlocation: 'Left Arm',
+    });
+    d._calculator.isExplosion = true;
+    d._calculator.hexesFromExplosion = 1;
+    await d.getData();
+    assert.equal(d._calculator.hitLocation, 'Large-Area');
+    assert.equal(d._calculator.DR, 6);
+    assert.equal(d._calculator.effectiveDR, 6);
+  });
   test('native calculated blunt trauma uses damage reaching flexible DR', async () => {
     reset();
     const a = layers(actor('one'), { dr: 6 }, { dr: 20, flexible: true });
     const d = await ready(new NativeADD(a, { damage: 20, damageType: 'cr', armorDivisor: 1 }));
     assert.equal(d._calculator.pointsToApply, 2);
     assert.equal(d._calculator.effectiveBluntTrauma, 2);
+  });
+  test('native injury tolerance, shock, major-wound and crippling logic remains authoritative', async () => {
+    reset();
+    const a = layers(actor('injury-audit', 99), { dr: 2, allLocations: true });
+    const d = await ready(new NativeADD(a, { damage: 20, damageType: 'cut', armorDivisor: 1 }));
+    d._calculator.hitLocation = 'Left Arm';
+    assert.equal(d._calculator.pointsToApply, 6);
+    assert.equal(d._calculator._calculators[0].calculatedShock, 4);
+    assert.equal(d._calculator._calculators[0].isCripplingInjury, true);
+    assert.equal(d._calculator._calculators[0].isMajorWound, true);
+    assert.ok(d._calculator.effects.some((effect) => effect.type === 'crippling'));
+    assert.ok(d._calculator.effects.some((effect) => effect.type === 'majorwound'));
+
+    d._calculator.hitLocation = 'Torso';
+    d._calculator.damageType = 'pi++';
+    d._calculator.isInjuryTolerance = true;
+    d._calculator.injuryToleranceType = 'unliving';
+    d._calculator._calculators[0].basicDamage = 10;
+    assert.equal(d._calculator.penetratingDamage, 8);
+    assert.equal(d._calculator.pointsToApply, 8);
+  });
+  test('layered skull injury leaves native B420 knockdown and stunning advice intact', async () => {
+    reset();
+    const a = layers(actor('head-audit', 99), { dr: 2, allLocations: true });
+    const d = await ready(new NativeADD(a, { damage: 5, damageType: 'cr', armorDivisor: 1 }));
+    d._calculator.hitLocation = 'Skull';
+    assert.equal(d._calculator.penetratingDamage, 3);
+    assert.equal(d._calculator.pointsToApply, 12);
+    const effect = d._calculator.effects.find((item) => item.type === 'headvitalshit');
+    assert.ok(effect);
+    assert.equal(effect.modifier, 10);
+    assert.equal(d._calculator._calculators[0].calculatedShock, 4);
   });
   test('temporary overrides do not alter actor flags and actor saves are read live', async () => {
     reset();
@@ -340,16 +466,15 @@ if (!source || !manual) {
     assert.equal(a.system.HP.value, 20);
     assert.equal(b.system.HP.value, 26);
   });
-  test('large-area review blocks application until explicit native fallback', async () => {
+  test('large-area layered protection resolves without native fallback', async () => {
     reset();
-    const a = layers(actor('one'), { dr: 5 });
-    const d = await ready(new NativeADD(a, { damage: 20, damageType: 'cr', armorDivisor: 1 }));
+    const a = layers(actor('one', 2), { dr: 5 });
+    const d = new NativeADD(a, { damage: 20, damageType: 'cr', armorDivisor: 1 });
     d._calculator.hitLocation = 'Large-Area';
-    assert.match(reviewError(stateFor(d)), /specific hit location/);
-    await assert.rejects(d.resolveInjury(true, 1, true, 'results'));
-    assert.equal(updates.length, 0);
-    stateFor(d).useLayers = false;
+    await ready(d);
     assert.equal(reviewError(stateFor(d)), '');
+    assert.equal(d._calculator.DR, 4);
+    assert.equal(d._calculator.pointsToApply, 16);
   });
   test('inner rigid armour after flexible stopping requires reviewed blunt trauma', async () => {
     reset();
