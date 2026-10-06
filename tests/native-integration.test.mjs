@@ -372,6 +372,18 @@ if (!source || !manual) {
     d._calculator.damageType = 'cr';
     assert.equal(d._calculator.effectiveDR, 5);
   });
+
+  test('temporary manual review bypasses configured layers and condition plans', async () => {
+    reset();
+    const a = layers(actor('manual-location', 99), { dr: 10 });
+    const d = await ready(new NativeADD(a, { damage: 12, damageType: 'cut', armorDivisor: 1 }));
+    d._calculator.manualDamageNoLocations = true;
+    d._calculator.userEnteredDR = 4;
+    assert.equal(d._calculator.DR, 4);
+    assert.equal(report(stateFor(d)).stack, undefined);
+    assert.equal(report(stateFor(d)).sequence, undefined);
+    assert.equal(reviewError(stateFor(d)), '');
+  });
   test('B400 large-area DR averages configured torso with least exposed protection', async () => {
     reset();
     const a = layers(actor('large-area', 2), { dr: 10 });

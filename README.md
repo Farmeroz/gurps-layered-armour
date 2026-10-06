@@ -1,4 +1,4 @@
-# GURPS Layered Armour 0.3.0
+# GURPS Layered Armour 0.3.1
 
 A separate Foundry VTT module with a player-facing **Armour Layers** window. It saves ordered armour on an actor and supplies layered DR to GGA's normal Apply Damage Dialog (ADD), including the ADD opened by GURPS Manual Damage.
 
@@ -12,7 +12,11 @@ For **Foundry VTT 14 and GURPS Game Aid (GGA) 0.18.x**. **libWrapper must be ins
 4. Open a damage ADD. Review the Armour Layers breakdown, then use **Apply Injury**. Merely opening the window does not damage armour or the actor.
 5. Inspect degrading armour in the actor's **Armour: layer name** Resource Trackers. Restore condition there when armour is repaired or replaced.
 
-### What is new in 0.3.0?
+### What is new in 0.3.1?
+
+Supports Manual Damage 0.3.1 temporary manual review for NPCs without hit locations. These reviews use the GM's explicit DR and bypass layered protection and armour degradation without changing the actor.
+
+### Features introduced in 0.3.0
 
 Ablative/Semi-Ablative layers have visible condition trackers and degrade sequentially across hits. The ADD includes explained Chinks controls, large-area exposure choices and explosion protection, while retaining native GGA injury handling. Manual Damage 0.3.0 exposes these attack contexts through ordinary `/add` → **Attack options**.
 
@@ -54,7 +58,7 @@ Export/import also works in **Adjust for this ADD only**. **Use for this ADD** c
 
 Manual Damage is optional. If you already use it, keep it enabled alongside this module. No character sheet files or system files need editing. For a manual installation, download the versioned ZIP from [GitHub Releases](https://github.com/Farmeroz/gurps-layered-armour/releases).
 
-**Moving from an rc test build:** install using the stable manifest above; rc manifests are pinned to their particular test release. Confirm **0.3.0** in Manage Modules, keep libWrapper enabled, and reload every connected client. Update Manual Damage to **0.3.0** if you use it. Existing actor armour data remains in place.
+**Moving from an rc test build:** install using the stable manifest above; rc manifests are pinned to their particular test release. Confirm **0.3.1** in Manage Modules, keep libWrapper enabled, and reload every connected client. Update Manual Damage to **0.3.1** if you use it. Existing actor armour data remains in place.
 
 ## Open the Armour Layers window
 
@@ -120,6 +124,8 @@ Changing degradation back to **None** and saving removes that layer's managed co
 This follows Damage Resistance, **Ablative** and **Semi-Ablative** (Basic Set: Characters, p. 46). The module uses one shared condition pool per configured layer rather than per-hit-location damage. Model separately degradable physical components as separate layers.
 
 ## Use it in the ADD
+
+When Manual Damage opens **temporary manual review** for an NPC without a hit-location table, this module bypasses layered protection and condition changes for that ADD. The GM enters reviewed DR in Manual Damage, or explicitly chooses direct damage. No actor armour or body-plan data is added or altered.
 
 Open a normal damage ADD, or use `/add` if Manual Damage is installed. The **Armour Layers** panel shows the active source and effective DR. Expand its breakdown to see each layer's DR, Hardened level, effective divisor, rounded DR contribution and damage reaching/leaving it.
 
