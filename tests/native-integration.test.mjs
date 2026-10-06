@@ -425,6 +425,18 @@ if (!source || !manual) {
     assert.equal(d._calculator.penetratingDamage, 8);
     assert.equal(d._calculator.pointsToApply, 8);
   });
+  test('layered skull injury leaves native B420 knockdown and stunning advice intact', async () => {
+    reset();
+    const a = layers(actor('head-audit', 99), { dr: 2, allLocations: true });
+    const d = await ready(new NativeADD(a, { damage: 5, damageType: 'cr', armorDivisor: 1 }));
+    d._calculator.hitLocation = 'Skull';
+    assert.equal(d._calculator.penetratingDamage, 3);
+    assert.equal(d._calculator.pointsToApply, 12);
+    const effect = d._calculator.effects.find((item) => item.type === 'headvitalshit');
+    assert.ok(effect);
+    assert.equal(effect.modifier, 10);
+    assert.equal(d._calculator._calculators[0].calculatedShock, 4);
+  });
   test('temporary overrides do not alter actor flags and actor saves are read live', async () => {
     reset();
     const a = layers(actor('one'), { dr: 5 });
