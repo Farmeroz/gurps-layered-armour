@@ -121,6 +121,8 @@ This follows Damage Resistance, **Ablative** and **Semi-Ablative** (Basic Set: C
 
 ## Use it in the ADD
 
+When Manual Damage opens **temporary manual review** for an NPC without a hit-location table, this module bypasses layered protection and condition changes for that ADD. The GM enters reviewed DR in Manual Damage, or explicitly chooses direct damage. No actor armour or body-plan data is added or altered.
+
 Open a normal damage ADD, or use `/add` if Manual Damage is installed. The **Armour Layers** panel shows the active source and effective DR. Expand its breakdown to see each layer's DR, Hardened level, effective divisor, rounded DR contribution and damage reaching/leaving it.
 
 - The normal ADD still handles damage entry, location, damage type, wound modifiers, Injury Tolerance, crippling limits, shock, major-wound and knockdown/stunning advice, HP/FP application and public/quiet result cards.

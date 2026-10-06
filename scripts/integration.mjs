@@ -16,6 +16,7 @@ const states = new WeakMap();
 const patched = Symbol.for('gurps-layered-armour.addPatched');
 function chinksEligible(calc) {
   return (
+    !calc.manualDamageNoLocations &&
     !calc.isExplosion &&
     calc.hitLocation !== 'Large-Area' &&
     (['imp', 'pi-', 'pi', 'pi+', 'pi++'].includes(calc.damageType) ||
@@ -89,6 +90,11 @@ export function stateFor(dialog) {
   return state;
 }
 export function report(state) {
+  if (state.dialog._calculator.manualDamageNoLocations)
+    return {
+      status:
+        'No hit-location table: temporary manual DR review. Layered armour and condition changes are bypassed for this ADD.',
+    };
   if (!state.useLayers)
     return {
       status: 'Native DR selected for this ADD. Review the DR override and native armour options.',
