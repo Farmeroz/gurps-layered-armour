@@ -1,4 +1,4 @@
-# GURPS Layered Armour 0.2.2
+# GURPS Layered Armour 0.3.0
 
 A separate Foundry VTT module with a player-facing **Armour Layers** window. It saves ordered armour on an actor and supplies layered DR to GGA's normal Apply Damage Dialog (ADD), including the ADD opened by GURPS Manual Damage.
 
@@ -12,7 +12,7 @@ Selecting a set changes ADD protection only. It does not equip inventory items o
 
 1. Expand **Add from actor equipment**. Search names and notes, and filter by **Likely armour**, **Equipped**, **Carried** or **All equipment**. The list includes container contents and available equipment items on this actor or unlinked token.
 2. Tick the items to use and choose **Add selected as layers**. Each item becomes one layer; quantity does not multiply DR. Use **All equipment** if an armour item is not recognised by the suggested filter.
-3. Review each layer's DR, coverage, Hardened level and flexible/rigid status. Reliable item values and complete GGA DR bonus lines are filled in where available. Unknown DR stays blank. Slash values such as `6/2` are not interpreted as separate layers.
+3. Review each layer's DR, coverage, Hardened level, flexible/rigid status and, where relevant, degradation mode. Reliable item values and complete GGA DR bonus lines are filled in where available. Unknown DR stays blank. Slash values such as `6/2` are not interpreted as separate layers.
 4. Enter missing values, arrange the outermost layer first, then tick **I have reviewed this layer's armour values**. An enabled layer marked **Needs review** blocks calculated injury until reviewed or disabled.
 5. Enable layered protection for the set, make it active if needed, and save.
 
@@ -26,7 +26,7 @@ Hover over a control or focus it with the keyboard for a short explanation. Pres
 
 ## Export and import
 
-Expand **Export / import setup** and choose **Export JSON** to download the displayed set, including unsaved edits. Exporting does not save the actor. The file preserves armour values, layer order, coverage and review state, but omits actor-specific equipment links.
+Expand **Export / import setup** and choose **Export JSON** to download the displayed set, including unsaved edits. Exporting does not save the actor. The file preserves armour values, layer order, coverage, degradation mode and review state, but omits actor-specific equipment and Resource Tracker links. Current battle damage is actor state and is not exported.
 
 On the destination actor, select or create a set, choose the JSON file, then **Import into editor**. Import replaces only the displayed set. Review the layers and coverage, choose **Make active** if appropriate, then **Save sets to actor**. Cancel leaves the actor unchanged.
 
@@ -70,11 +70,11 @@ The command registers with GGA's chat processor, so GGA chat macros and OtF comm
 
 ## Enter armour
 
-1. Add a layer and give it a name, default DR, kind, Hardened level (0–6), and flexible/rigid status.
+1. Add a layer and give it a name, default DR, kind, Hardened level (0–6), flexible/rigid status and, if needed, **Ablative** or **Semi-Ablative** degradation.
 2. Expand **Coverage** and select its hit locations. New layers initially cover Torso, or the first actor location if Torso is unavailable.
 3. Optionally give individual locations their own DR and damage-type values. **Covers every location** applies the default everywhere; selected rows can still override it.
 4. Use the up/down arrows to put the outermost layer first. Add natural DR and force fields as their own layers where applicable. Force-field layers are treated as non-flexible.
-5. Select **Enable layered protection for this set**, choose **Make active** if needed, then **Save sets to actor**.
+5. Select **Enable layered protection for this set**, choose **Make active** if needed, then **Save sets to actor**. Saving automatically creates or updates a visible GGA Resource Tracker for each degrading layer.
 
 **Configured coverage replaces the sheet's total DR at that location.** Include all protection there, including innate DR, skull protection where applicable, padding not already included in an armour entry, and other sources. Imported total DR is not added on top. Locations with no configured coverage retain GGA's normal sheet DR.
 
@@ -90,22 +90,38 @@ List each piercing size separately. Zero is valid. An unspecified type uses that
 
 The editor shows imported DR as a reference, including slash strings and structured damage-type values. It does **not** guess layers from `x/y/z`. Slash values in GURPS can represent protection by damage type or location (Basic Set, p. 282). Use the equipment picker to create reviewable layers, or add layers manually.
 
+### Ablative armour condition
+
+A degrading layer keeps its configured DR unchanged and stores its current condition in a normal, visible GGA Resource Tracker named **Armour: _layer name_**. Players and GMs can therefore see armour condition on the actor outside the ADD and can restore the tracker when armour is repaired, replenished or replaced.
+
+- **Ablative** DR loses one point of condition per point of basic damage that the layer actually stops.
+- **Semi-Ablative** DR loses one point per full 10 points of basic damage that actually reach that layer.
+- An inner degrading layer loses nothing when an outer layer stops the attack.
+- Armour divisors and Hardened affect how much Ablative DR actually stops; they do not directly change the Semi-Ablative one-per-10 rate.
+- Multiple hits in one ADD are resolved in sequence, so later hits see condition left by earlier hits.
+- Condition changes shown in the ADD are previews. The tracker changes only when calculated injury is applied.
+
+This follows Damage Resistance, **Ablative** and **Semi-Ablative** (Basic Set: Characters, p. 46). The module uses one shared condition pool per configured layer rather than per-hit-location damage. Model separately degradable physical components as separate layers.
+
 ## Use it in the ADD
 
 Open a normal damage ADD, or use `/add` if Manual Damage is installed. The **Armour Layers** panel shows the active source and effective DR. Expand its breakdown to see each layer's DR, Hardened level, effective divisor, rounded DR contribution and damage reaching/leaving it.
 
-- The normal ADD still handles damage entry, location, damage type, wound modifiers, injury tolerance, crippling limits, HP/FP application and public/quiet result cards.
+- The normal ADD still handles damage entry, location, damage type, wound modifiers, Injury Tolerance, crippling limits, shock, major-wound and knockdown/stunning advice, HP/FP application and public/quiet result cards.
 - Global DR, Hardened and Flexible Armour controls are disabled when a saved stack covers the location. Edit the layers instead. The attack divisor and other damage controls remain available.
 - **Adjust for this ADD only** opens a separate editor. Its changes remain only in this ADD, including Apply Multiple, and do not update actor flags or carry to another token in a Manual Damage queue.
 - **Reload saved layers** discards the temporary stack and uses the actor's current saved profile.
 - Turn off **Use layered DR in this ADD** to use the native controls for a reviewed exception.
+- For eligible piercing, impaling and tight-beam burning attacks, **Chinks / weak point** appears only when it is relevant. Tick it only after the attack successfully targeted a chink under B400.
+- For **Large-Area** or explosion damage, expand **Large-area exposure** only if the default exposed-location list needs adjustment. The module averages Torso DR with the least-protected exposed location as B400 directs.
+- Explosion collateral damage automatically uses Large-Area protection and ignores the attack's armour divisor under B414.
 - Use the lower **Apply Injury** controls to apply the calculated result. Native **Direct Apply** deliberately bypasses armour.
 
 The armour breakdown is included in the same native damage result card, with the same public or quiet visibility. Merely opening or saving the armour editor does not roll dice, apply injury or send a chat message.
 
 ## Calculation rules and explicit boundaries
 
-Rules references are to the supplied GURPS Basic Set: Characters p. 47 (Hardened), pp. 282 and 286 (split DR and armour layering), and Campaigns pp. 378–379 (DR, divisors and blunt trauma).
+Rules references are to GURPS Basic Set, Fourth Edition: Characters pp. 46–47 (Ablative, Semi-Ablative and Hardened), pp. 282 and 286 (split DR and armour layering), and Campaigns pp. 378–380 (DR, divisors, blunt trauma and injury), pp. 398–400 (hit locations, large-area injury and chinks), and pp. 414–415 (explosions and fragmentation).
 
 - Hardened changes the divisor **for its own layer**, using ignores DR → 100 → 10 → 5 → 3 → 2 → 1. The attack retains its original divisor for the next layer. GGA's divisor-4 convention treats it as 3 when Hardened applies. An unsupported Hardened divisor requires manual review.
 - Fractional protection is retained while layer contributions are combined; the total is rounded down once. The breakdown allocates the rounded points cumulatively in outer-to-inner order. This preserves ordinary additive DR when layers share a divisor. Extending the total-rounding rule to mixed divisors is this module's explicit calculation convention, not a separate quoted rule about mixed Hardened layers.
@@ -113,8 +129,11 @@ Rules references are to the supplied GURPS Basic Set: Characters p. 47 (Hardened
 - Wounding is applied after final penetration, once. Merely swapping simple DR layers with different Hardened levels need not change final penetration. Example: 20 damage, divisor 3, DR 12/Hardened 1 and DR 6/Hardened 0 gives effective DR 8 and 12 penetrating damage in either order.
 - Rigid outer DR reduces the damage eligible for blunt trauma from flexible inner armour (p. 379). Consecutive flexible layers combine. An attack that penetrates the stack inflicts no additional blunt trauma. GGA's blunt-trauma setting and explicit override remain in use.
 - If flexible armour stops the attack before an inner rigid layer and would inflict blunt trauma, application requires a reviewed native **Blunt Trauma** override. Enter 0 if the adjudicated injury is zero. The module does not silently decide that interaction.
-- **Large-area and explosion armour calculation is not automated.** Choose a specific location for an ordinary hit, or turn off layered DR in that ADD and enter reviewed native DR/options. Calculated injury is blocked while the unresolved layered case remains active.
-- Corrosion and ablative/semi-ablative depletion, armour damage, gaps/chinks, partial coverage rolls, special penetration modifiers, force-field effects beyond DR, and equipment weight/DX/encumbrance changes are not automated. Adjust the relevant values manually. Layer kinds document the source; they do not implement every modifier associated with it. Innate-layer order and lawful worn combinations remain player/GM rules decisions.
+- **Chinks in armour** halve the applicable layered DR and remain cumulative with an armour divisor, as on B400. The checkbox is intentionally contextual; the module does not make the attack roll or decide whether a chink was successfully targeted.
+- **Large-area injury** uses the B400 average of Torso DR and the least-protected exposed location, rounded up. The user may untick locations that are not exposed. If only one body part is exposed, select that specific hit location instead, as B400 directs.
+- **Explosion collateral damage** uses the large-area calculation and does not receive the attack's armour divisor (B414). The ADD remains responsible for distance-based explosion damage.
+- Ablative and Semi-Ablative condition is automated as described above. For large-area attacks, the module applies the B400 averaged protection to the shared layer condition; the Basic Set does not give a separate per-location Ablative procedure for this case.
+- Corrosion damage to armour, partial-coverage rolls, special penetration modifiers beyond those described above, force-field effects beyond DR, and equipment weight/DX/encumbrance changes are not automated. Adjust those cases manually. Layer kinds document the source; they do not implement every modifier associated with it. Innate-layer order and lawful worn combinations remain player/GM rules decisions.
 
 ## Persistence and actor identity
 
@@ -132,4 +151,4 @@ GURPS is a trademark of Steve Jackson Games. This unofficial module is not affil
 
 ## Vitality Reserve compatibility
 
-Version 0.2.3 uses libWrapper for ADD integration. Enable libWrapper alongside this module. Use GGA Vitality Reserve 0.1.1 or later when combining them: armour review runs before VR routing, and the VR result retains the armour audit.
+Version 0.3.0 uses libWrapper for ADD integration. Enable libWrapper alongside this module. Use GGA Vitality Reserve 0.1.1 or later when combining them: armour review runs before VR routing, and the VR result retains the armour audit.
