@@ -1,4 +1,8 @@
-# GURPS Layered Armour 0.4.0
+# GURPS Layered Armour 0.4.1
+
+## Release 0.4.1
+
+Declare verified Foundry VTT 14 compatibility, reflecting maintainer live testing. No runtime or GURPS 4e rules changes.
 
 A separate Foundry VTT module with a player-facing **Armour Layers** window. It saves ordered armour on an actor and supplies layered DR to GGA's normal Apply Damage Dialog (ADD), including the ADD opened by GURPS Manual Damage.
 
