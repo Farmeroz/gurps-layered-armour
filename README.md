@@ -64,7 +64,7 @@ Export/import also works in **Adjust for this ADD only**. **Use for this ADD** c
 
 Manual Damage is optional. If you already use it, keep it enabled alongside this module. No character sheet files or system files need editing. For a manual installation, download the versioned ZIP from [GitHub Releases](https://github.com/Farmeroz/gurps-layered-armour/releases).
 
-**Moving from an rc test build:** install using the stable manifest above; rc manifests are pinned to their particular test release. Confirm **0.3.1** in Manage Modules, keep libWrapper enabled, and reload every connected client. Update Manual Damage to **0.3.1** if you use it. Existing actor armour data remains in place.
+**Moving from an rc test build:** install using the stable manifest above; rc manifests are pinned to their particular test release. Confirm **0.4.0** in Manage Modules, keep libWrapper enabled, and reload every connected client. Update Manual Damage to **0.3.1** if you use it. Existing actor armour data remains in place.
 
 ## Open the Armour Layers window
 
