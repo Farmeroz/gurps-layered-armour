@@ -1,6 +1,7 @@
 <form class="armour-form" autocomplete="off" data-temporary="{{temporary}}">
   <header>
     <h2>{{name}} · Armour Layers</h2>
+    {{#unless temporary}}<button type="button" data-action="shields">Shields: damage and condition</button>{{/unless}}
     <section class="armour-set-controls">
       <label>Editing set<select data-set-select data-help="Choose a set to edit. Switching sets retains draft edits; it does not change the active set.">{{#each sets}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{name}}</option>{{/each}}</select></label>
       <label>Set name<input data-set-name value="{{setName}}" maxlength="80" data-help="Give this set a unique name, such as Everyday or Combat."></label>

@@ -1,0 +1,74 @@
+<form class="armour-form">
+  <h2>Shield tracking</h2>
+  <p>GURPS 4e Basic Set B483–484 / Shields Up! pp. 15–16. Tracking is optional. Shield actions never change sheet DB, manoeuvres, or wearer HP automatically.</p>
+  <div class="armour-set-actions">
+    <select data-select aria-label="Shield">{{#each items}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{name}}</option>{{/each}}</select>
+    <button type="button" data-shield-action="add">Add shield</button>
+    <button type="button" data-shield-action="reload">Reload</button>
+    <button type="button" data-shield-action="undo" {{#unless canUndo}}disabled{{/unless}}>Undo last change</button>
+  </div>
+  {{#if shield}}
+  <p><strong>{{capability.condition}} · Effective DB {{capability.db}} · Cover DR {{capability.coverDR}}</strong></p>
+  <label><input type="checkbox" data-shield="enabled" {{checked shield.enabled}}> Enable damage tracking for this shield</label>
+  <div class="armour-fields">
+    <label>Name<input data-shield="name" value="{{shield.name}}" maxlength="100"></label>
+    <label>Rules<select data-shield="mode">{{#each modes}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{value}}</option>{{/each}}</select></label>
+    <label>Normal DB<input type="number" data-shield="db" value="{{shield.db}}" min="0"></label>
+    <label>DR<input type="number" data-shield="dr" value="{{shield.dr}}" min="0"></label>
+    <label>Maximum HP<input type="number" data-shield="maxHP" value="{{shield.maxHP}}" min="1"></label>
+    <label>Undamaged Cover DR<input type="number" data-shield="coverDR" value="{{shield.coverDR}}" min="0" step="0.5"></label>
+    <label>HT<input type="number" data-shield="ht" value="{{shield.ht}}" min="1"></label>
+    <label>Construction<select data-shield="construction">{{#each constructions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{value}}</option>{{/each}}</select></label>
+    <label>Current HP<input type="number" data-shield="hp" value="{{shield.hp}}"></label>
+    <label>Simple hits (0–7)<input type="number" data-shield="hits" value="{{shield.hits}}" min="0" max="7"></label>
+    <label>Recorded condition<select data-shield="condition">{{#each conditions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{value}}</option>{{/each}}</select></label>
+    <label>Base price ($)<input type="number" data-shield="cost" value="{{shield.cost}}" min="0"></label>
+  </div>
+  <p>Cover DR is an explicit value: suggested DR + floor(maximum HP / 4). It does not fall with current HP. Simple mode ignores HP and uses Homogeneous damage modifiers, with full cutting damage.</p>
+  <div class="armour-fields">
+    <label><input type="checkbox" data-shield="canBlock" {{checked shield.canBlock}}> Permits Block</label>
+    <label><input type="checkbox" data-shield="canCover" {{checked shield.canCover}}> Permits cover</label>
+    <label><input type="checkbox" data-shield="massive" {{checked shield.massive}}> Massive Overpenetration (Shields Up!)</label>
+    <label><input type="checkbox" data-shield="totalCover" {{checked shield.totalCover}}> Total Cover option</label>
+    <label><input type="checkbox" data-shield="enchanted" {{checked shield.enchanted}}> Enchanted</label>
+    <label><input type="checkbox" data-shield="magicLost" {{checked shield.magicLost}}> Enchantments lost</label>
+    <label><input type="checkbox" data-shield="artifact" {{checked shield.artifact}}> Extraordinary artifact</label>
+  </div>
+  <label>Correction / repair note<input data-note maxlength="500"></label>
+  <button type="button" data-shield-action="save">Save configuration / manual correction</button>
+  <button type="button" data-shield-action="delete">Remove shield</button>
+  <p>Changing modes does not convert HP into simple hits. Review the destination condition. DB and Block availability shown here must be reflected in your defence modifiers manually.</p>
+  <fieldset><legend>Apply damage to shield</legend>
+    <div class="armour-fields">
+      <label>Basic damage<input type="number" data-damage min="0" value="0"></label>
+      <label>Type<select data-type>{{#each types}}<option value="{{value}}">{{value}}</option>{{/each}}</select></label>
+      <label>Armour divisor (0 ignores DR)<input type="number" data-divisor min="0" step="0.1" value="1"></label>
+      <label>How it was hit<select data-reason><option value="targeted">Deliberately targeted</option><option value="db">DB saved the defence</option><option value="cover">Presented as cover</option><option value="slung">Slung, covered hex-side</option><option value="take-area">Take Cover: area attack</option><option value="massive">Massive: successful Block</option></select></label>
+      <label>Block success margin<input type="number" data-margin min="0" value="0"></label>
+      <label><input type="checkbox" data-critical> Critical Block (Massive option)</label>
+    </div>
+    <p>Confirm interception and any defence before applying. Ordinary burning damage is supported; special flame and corrosion effects are excluded. Resolve knockback separately.</p>
+    <button type="button" data-shield-action="damage">Apply shield damage</button>
+    <button type="button" data-shield-action="ht">Basic Set: HT before use at ≤0 HP</button>
+    {{#if result.residual}}<p>Residual basic damage: <strong>{{result.residual}} {{result.type}}</strong>. Choose the correct location in ADD; for Basic Set roll 1d: 1–2 shield arm, 3–6 original target.</p><button type="button" data-shield-action="residual" {{#if result.opened}}disabled{{/if}}>Open residual damage in ADD</button>{{/if}}
+  </fieldset>
+  <fieldset><legend>Record completed repairs</legend>
+    <label>HP restored / simple hits removed<input type="number" data-repair min="1" value="1"></label>
+    <label>Detailed disabled-shield cost: 1d result<input type="number" data-repair-die min="1" max="6" value="1"></label>
+    <p>Record the completed repair and its note. This does not roll repair skills, spend money, or restore lost enchantments. The detailed quote is for full repair in town.</p>
+    <button type="button" data-shield-action="repair">Record repair</button>
+  </fieldset>
+  <details><summary>Shields Up! cover helper</summary>
+    <label>Use<select data-cover-use><option value="cover">All-Out Defence (Cover)</option><option value="take-ranged">Take Cover: subsequent ranged attacks</option><option value="take-area">Take Cover: area/spreading</option><option value="slung">Slung: covered hex-side</option></select></label>
+    <label><input type="checkbox" data-legal> Attack is eligible and from the covered direction</label>
+    <label>Attack miss margin (positive = miss)<input type="number" data-miss value="1"></label>
+    <label>Posture's protective modifier (positive)<input type="number" data-posture min="0" value="0"></label>
+    <label>Defender SM<input type="number" data-sm value="0"></label>
+    <button type="button" data-shield-action="advice">Check cover</button>
+    <p data-advice>{{advice}}</p>
+    <p>Take Cover means kneeling: +1 to the initial Block, then the stated protection for the rest of your turn; start your next turn kneeling. Slung cover protects one hex-side and uses natural DR for penetration. This helper does not change GGA manoeuvres or modifiers.</p>
+  </details>
+  {{/if}}
+  {{#if message}}<p class="armour-notice" role="status">{{message}}</p>{{/if}}
+  <p data-error class="armour-error" role="alert" hidden></p>
+</form>
