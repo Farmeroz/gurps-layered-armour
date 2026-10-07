@@ -79,7 +79,7 @@ export function injuryMultiplier(type, construction = 'homogeneous') {
   const normal = { imp: 2, 'pi-': 0.5, pi: 1, 'pi+': 1.5, 'pi++': 2 };
   const homogeneous = { imp: 0.5, 'pi-': 0.1, pi: 0.2, 'pi+': 1 / 3, 'pi++': 0.5 };
   const unliving = { imp: 1, 'pi-': 0.2, pi: 1 / 3, 'pi+': 0.5, 'pi++': 1 };
-  return ({ normal, homogeneous, unliving }[construction]?.[type] ?? 1);
+  return { normal, homogeneous, unliving }[construction]?.[type] ?? 1;
 }
 export function coverAdvice(input, options = {}) {
   const s = shieldRecord(input);
@@ -92,7 +92,8 @@ export function coverAdvice(input, options = {}) {
   let penalty = 0;
   if (eligible) penalty = use === 'take-ranged' ? Math.floor(c.db / 2) : c.db;
   const total = eligible && s.totalCover && penalty + posture >= 5 + sm;
-  const margin = options.miss == null ? null : integer(options.miss, 'Attack miss margin', -100, 100);
+  const margin =
+    options.miss == null ? null : integer(options.miss, 'Attack miss margin', -100, 100);
   return {
     penalty,
     total,
@@ -131,7 +132,15 @@ export function resolveShieldHit(input, attack = {}) {
     if (s.mode === 'basic' || !s.massive || !before.canBlock)
       throw new Error('Enable Massive Overpenetration on a usable Shields Up! shield.');
     if (attack.critical === true)
-      return { shield: s, loss: 0, hits: 0, residual: 0, checks: [], stopped: true, notes: ['Critical Block stops the attack.'] };
+      return {
+        shield: s,
+        loss: 0,
+        hits: 0,
+        residual: 0,
+        checks: [],
+        stopped: true,
+        notes: ['Critical Block stops the attack.'],
+      };
     const margin = integer(attack.margin, 'Block success margin', 0, 100);
     if (margin < before.db) throw new Error('Use DB intercepted for a Block saved by its DB.');
     cover *= 2;
@@ -149,16 +158,24 @@ export function resolveShieldHit(input, attack = {}) {
       throw new Error('Simple damage with zero effective Cover DR needs a manual hit ruling.');
     hits = threshold > 0 ? Math.floor(adjusted / threshold) : 0;
     next.hits = Math.min(7, s.hits + hits);
-    notes.push('Simple mode uses Cover DR at the start of this attack for all hit multiples; no fractional hits carry over.');
+    notes.push(
+      'Simple mode uses Cover DR at the start of this attack for all hit multiples; no fractional hits carry over.',
+    );
   } else {
     const penetrating = Math.max(0, damage - effectiveDR(s.dr, divisor));
-    loss = penetrating > 0 ? Math.max(1, Math.floor(penetrating * injuryMultiplier(type, s.construction))) : 0;
+    loss =
+      penetrating > 0
+        ? Math.max(1, Math.floor(penetrating * injuryMultiplier(type, s.construction)))
+        : 0;
     next.hp = Math.max(-10 * s.maxHP, s.hp - loss);
     if (s.mode === 'basic' && loss > 0) {
       for (let n = 1; n < 5; n++)
-        if (s.hp > -n * s.maxHP && next.hp <= -n * s.maxHP) checks.push({ kind: 'destruction', target: s.ht, threshold: -n * s.maxHP });
+        if (s.hp > -n * s.maxHP && next.hp <= -n * s.maxHP)
+          checks.push({ kind: 'destruction', target: s.ht, threshold: -n * s.maxHP });
       if (next.hp <= 0 && next.hp > -5 * s.maxHP)
-        notes.push('At 0 HP or below, check HT before each further use; failure disables the shield (B483).');
+        notes.push(
+          'At 0 HP or below, check HT before each further use; failure disables the shield (B483).',
+        );
     }
   }
   next.condition = capabilities(next).condition;
@@ -169,7 +186,9 @@ export function resolveShieldHit(input, attack = {}) {
   const penetrates = s.mode === 'basic' || (presented && (piercing || reason === 'slung'));
   const residual = penetrates ? Math.max(0, damage - effectiveDR(cover, divisor)) : 0;
   if (!penetrates && damage > s.dr && ['destroyed', 'pulverised'].includes(next.condition))
-    notes.push('Shield destroyed by a non-overpenetrating blow: GM decides any continuation; no automatic wearer damage.');
+    notes.push(
+      'Shield destroyed by a non-overpenetrating blow: GM decides any continuation; no automatic wearer damage.',
+    );
   if (s.mode === 'basic' && residual > 0)
     notes.push('B484: roll 1d for location: 1–2 shield arm; 3–6 original target location.');
   notes.push('Resolve knockback separately. Wearer injury is not applied by this action.');
@@ -186,7 +205,8 @@ export function applyHTResult(input, kind, total) {
 export function repairShield(input, amount, die = 1) {
   const s = shieldRecord(input);
   const c = capabilities(s);
-  if (s.artifact) throw new Error('An extraordinary artifact needs a GM ruling; use manual correction.');
+  if (s.artifact)
+    throw new Error('An extraordinary artifact needs a GM ruling; use manual correction.');
   if (c.condition === 'pulverised') throw new Error('A pulverised shield cannot be repaired.');
   const next = { ...s };
   if (s.mode === 'simple') next.hits = Math.max(0, s.hits - integer(amount, 'Hits repaired', 1, 7));
@@ -196,6 +216,7 @@ export function repairShield(input, amount, die = 1) {
   // Repairs never restore enchantments.
   let cost = null;
   if (s.mode === 'detailed' && c.condition !== 'functional')
-    cost = c.condition === 'destroyed' ? s.cost : s.cost * integer(die, 'Repair cost die', 1, 6) / 10;
+    cost =
+      c.condition === 'destroyed' ? s.cost : (s.cost * integer(die, 'Repair cost die', 1, 6)) / 10;
   return { shield: next, cost };
 }

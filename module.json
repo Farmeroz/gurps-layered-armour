@@ -30,12 +30,8 @@
       }
     ]
   },
-  "esmodules": [
-    "scripts/main.mjs"
-  ],
-  "styles": [
-    "styles/armour.css"
-  ],
+  "esmodules": ["scripts/main.mjs"],
+  "styles": ["styles/armour.css"],
   "url": "https://github.com/Farmeroz/gurps-layered-armour",
   "manifest": "https://github.com/Farmeroz/gurps-layered-armour/releases/download/v0.4.0-rc1/module.json",
   "download": "https://github.com/Farmeroz/gurps-layered-armour/releases/download/v0.4.0-rc1/gurps-layered-armour-v0.4.0-rc1.zip",
