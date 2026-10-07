@@ -292,3 +292,10 @@ test('successive undo walks backward instead of redoing the preceding action', a
   assert.equal(readShields(a).items.length, 0);
   assert.equal(readShields(a).history.length, 0);
 });
+
+test('Massive doubled Cover DR also protects Simple-mode durability', () => {
+  const s = shield({ mode: 'simple', massive: true, coverDR: 10 });
+  const r = hit(s, 39, 'cr', { reason: 'massive', margin: 2 });
+  assert.equal(r.hits, 1);
+  assert.equal(hit(s, 39, 'cr', { reason: 'cover' }).hits, 3);
+});

@@ -153,7 +153,7 @@ export function resolveShieldHit(input, attack = {}) {
   if (s.mode === 'simple') {
     // Simple mode expressly uses full cutting damage, unlike normal object injury.
     const adjusted = damage * (type === 'cut' ? 1 : injuryMultiplier(type, 'homogeneous'));
-    const threshold = effectiveDR(before.coverDR, divisor);
+    const threshold = effectiveDR(reason === 'massive' ? cover : before.coverDR, divisor);
     if (threshold <= 0 && damage > 0)
       throw new Error('Simple damage with zero effective Cover DR needs a manual hit ruling.');
     hits = threshold > 0 ? Math.floor(adjusted / threshold) : 0;
