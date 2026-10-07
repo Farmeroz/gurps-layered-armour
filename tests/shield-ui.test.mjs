@@ -6,26 +6,46 @@ import { parseHTML } from 'linkedom';
 import { createShieldEditor, reportShield, openResidual } from '../scripts/shield-editor.mjs';
 import { ID } from '../scripts/core.mjs';
 
-Handlebars.registerHelper('checked', (value) => value ? 'checked' : '');
-const template = Handlebars.compile(await readFile(new URL('../templates/shields.hbs', import.meta.url), 'utf8'));
+Handlebars.registerHelper('checked', (value) => (value ? 'checked' : ''));
+const template = Handlebars.compile(
+  await readFile(new URL('../templates/shields.hbs', import.meta.url), 'utf8'),
+);
 class Base {
-  static get defaultOptions() { return {}; }
-  constructor() { this.options = {}; }
-  render() { return this; }
+  static get defaultOptions() {
+    return {};
+  }
+  constructor() {
+    this.options = {};
+  }
+  render() {
+    return this;
+  }
   activateListeners() {}
 }
 function setup() {
-  globalThis.foundry = { utils: { mergeObject: (a, b) => ({ ...a, ...b }), randomID: () => 'testShield' } };
+  globalThis.foundry = {
+    utils: { mergeObject: (a, b) => ({ ...a, ...b }), randomID: () => 'testShield' },
+  };
   globalThis.game = { user: { isGM: false }, settings: { get: () => 'blindroll' } };
   globalThis.ChatMessage = {
     getSpeaker: ({ actor }) => ({ actor: actor.id }),
-    applyRollMode: (data, mode) => { data.rollMode = mode; },
-    create: async (data) => { globalThis.lastShieldChat = data; },
+    applyRollMode: (data, mode) => {
+      data.rollMode = mode;
+    },
+    create: async (data) => {
+      globalThis.lastShieldChat = data;
+    },
   };
   return {
-    id: 'a', uuid: 'Actor.a', name: 'Tester', isOwner: true, flags: {},
+    id: 'a',
+    uuid: 'Actor.a',
+    name: 'Tester',
+    isOwner: true,
+    flags: {},
     system: { additionalresources: { tracker: {} } },
-    getFlag(id, key) { return this.flags[id]?.[key]; },
+    getFlag(id, key) {
+      return this.flags[id]?.[key];
+    },
     async update(data) {
       for (const [key, value] of Object.entries(data)) {
         if (key === `flags.${ID}.shields`) this.flags[ID] = { shields: structuredClone(value) };
@@ -88,13 +108,23 @@ test('chat escapes labels and notes and preserves configured visibility', async 
 test('residual handoff passes basic damage and divisor to native ADD without actor mutation', async () => {
   const a = setup();
   let received;
-  globalThis.GURPS = { ApplyDamageDialog: class {
-    constructor(actor, data) { received = { actor, data }; }
-    render() {}
-  } };
+  globalThis.GURPS = {
+    ApplyDamageDialog: class {
+      constructor(actor, data) {
+        received = { actor, data };
+      }
+      render() {}
+    },
+  };
   await openResidual(a, { residual: 9, type: 'imp', divisor: 2 });
   assert.equal(received.actor, a);
-  assert.deepEqual(received.data, { damage: 9, damageType: 'imp', armorDivisor: 2, dice: '9', attacker: 'a' });
+  assert.deepEqual(received.data, {
+    damage: 9,
+    damageType: 'imp',
+    armorDivisor: 2,
+    dice: '9',
+    attacker: 'a',
+  });
   assert.deepEqual(a.flags, {});
   a.isOwner = false;
   await assert.rejects(() => openResidual(a, { residual: 9 }), /permission/);

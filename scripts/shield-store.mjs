@@ -73,6 +73,7 @@ export async function changeShields(
   action,
   transform,
   user = globalThis.game?.user,
+  undo = false,
 ) {
   if (!canEdit(actor, user)) throw new Error('Choose an actor you own.');
   if (locks.has(actor.uuid)) throw new Error('Another shield action is still saving.');
@@ -92,9 +93,9 @@ export async function changeShields(
       schema: 1,
       revision: current.revision + 1,
       items,
-      history: [...(current.history ?? []), { action, before: current.items, after: items }].slice(
-        -20,
-      ),
+      history: undo
+        ? current.history.slice(0, -1)
+        : [...(current.history ?? []), { action, before: current.items, after: items }].slice(-20),
     };
     await actor.update({ [`flags.${ID}.shields`]: next, ...shieldTrackerUpdate(actor, items) });
     return readShields(actor);
@@ -108,6 +109,6 @@ export async function undoShields(actor, expected, user = globalThis.game?.user)
   if (!entry) throw new Error('No shield action to undo.');
   if (JSON.stringify(current.items) !== JSON.stringify(entry.after))
     throw new Error('A condition tracker changed after that action. Use manual correction.');
-  // Undo is itself a recorded action; it never changes wearer injury or chat history.
-  return changeShields(actor, expected, `Undo: ${entry.action}`, () => entry.before, user);
+  // Pop history atomically with condition; wearer injury and chat history are separate.
+  return changeShields(actor, expected, `Undo: ${entry.action}`, () => entry.before, user, true);
 }

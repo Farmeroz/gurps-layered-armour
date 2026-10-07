@@ -275,3 +275,20 @@ test('concurrent same-client actions are rejected', async () => {
   release();
   await pending;
 });
+
+test('successive undo walks backward instead of redoing the preceding action', async () => {
+  const a = actor();
+  await changeShields(a, JSON.stringify(readShields(a)), 'add', () => [shield()], user);
+  await changeShields(
+    a,
+    JSON.stringify(readShields(a)),
+    'hit',
+    (items) => [hit(items[0], 12).shield],
+    user,
+  );
+  await undoShields(a, JSON.stringify(readShields(a)), user);
+  assert.equal(readShields(a).items[0].hp, 20);
+  await undoShields(a, JSON.stringify(readShields(a)), user);
+  assert.equal(readShields(a).items.length, 0);
+  assert.equal(readShields(a).history.length, 0);
+});
