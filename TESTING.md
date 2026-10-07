@@ -8,6 +8,19 @@ Tests cover layer ordering, armour divisors and Hardened, flexible armour and bl
 
 The suite exercises these behaviours but does not claim complete coverage or reproduce a connected Foundry world. All automated cases should run; the standard test command treats skipped Node tests as a failure. Test output is saved under `test-output/`.
 
+## Shield release validation
+
+Phil accepted live testing of 0.4.0-rc2 on 7 October 2026 for promotion to stable 0.4.0.
+The 103-test suite covers Basic Set and Shields Up! Detailed/Simple boundaries, Cover DR,
+Massive Overpenetration, repair and enchantment state, visible trackers, successive undo,
+stale-window rejection, permissions, chat escaping/visibility, the player form, and ADD handoff.
+
+For future regressions, test all three shield modes from **Armour Layers → Shields**. Confirm
+that tracking is initially disabled, condition persists across reloads, tracker edits are
+respected, repairs retain lost enchantments, and undo does not change separately applied wearer
+injury. Check public, GM, self, and blind reports. Confirm existing armour sets still behave
+normally. Defence modifiers, manoeuvres, knockback, and the documented special cases remain manual.
+
 ## Source fixtures
 
 - `crnormand/gurps` 0.18.23, commit `4fb95f7ed8e114993c65ef77dc912a7b77957b02`, cached in `.cache/gga/`; optional installed-source override: `GGA_SOURCE`.
@@ -33,9 +46,9 @@ Create Everyday and Combat sets from inventory items. Verify both retain their o
 
 The build checks module/package versions, install URLs, declared assets, local imports, the allowed archive file list, and every archived file's bytes. The release ZIP contains only runtime files, the licence, and user documentation.
 
-## Final candidate live checks (not verified by automated CI)
+## Connected-world regression checklist
 
-Use the release candidates together in your normal Foundry world with one GM and one connected player. Record the Foundry, GGA and module versions and each result.
+Use the modules together in your normal Foundry world with one GM and one connected player. Record the Foundry, GGA and module versions and each result.
 
 - Open ordinary /add, expand Attack options, and confirm Fragmentation, Large-Area, Explosion and the explained Chinks control are discoverable.
 - Apply explosion damage separately before fragment review. Confirm the replacement acknowledgement cannot accidentally apply the original basic/blast damage.
@@ -46,4 +59,4 @@ Use the release candidates together in your normal Foundry world with one GM and
 - With the player connected, test ownership/GM-only permissions and public, GM, self and blind visibility. Blind results must remain hidden from players; this helper does not automatically transfer a player's pending queue to another client's GM. Use GM-led review for blind fragmentation.
 - Reload the world and confirm armour configuration and remaining tracker values persist.
 
-Passing automated tests does not establish these connected-world results. Record any failure before promoting to stable.
+Automated tests and connected-world checks serve different purposes. Record any regression with reproduction steps.

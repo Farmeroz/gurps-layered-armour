@@ -1,4 +1,4 @@
-# GURPS Layered Armour 0.3.1
+# GURPS Layered Armour 0.4.0
 
 A separate Foundry VTT module with a player-facing **Armour Layers** window. It saves ordered armour on an actor and supplies layered DR to GGA's normal Apply Damage Dialog (ADD), including the ADD opened by GURPS Manual Damage.
 
@@ -12,7 +12,13 @@ For **Foundry VTT 14 and GURPS Game Aid (GGA) 0.18.x**. **libWrapper must be ins
 4. Open a damage ADD. Review the Armour Layers breakdown, then use **Apply Injury**. Merely opening the window does not damage armour or the actor.
 5. Inspect degrading armour in the actor's **Armour: layer name** Resource Trackers. Restore condition there when armour is repaired or replaced.
 
-### What is new in 0.3.1?
+### What is new in 0.4.0?
+
+Optional shield damage tracking supports GURPS 4e Basic Set and both Shields Up! modes, with visible condition trackers, repairs, manual correction, undo, and residual damage review in GGA ADD. Open **Armour Layers → Shields: damage and condition** to configure a shield. Tracking starts disabled; defence modifiers and manoeuvres remain manual.
+
+Phil accepted live testing of the shield release candidate on 7 October 2026. The automated suite passes all 103 tests, including shield rules, player controls, permissions, persistence, visibility, and undo.
+
+### Features introduced in 0.3.1
 
 Supports Manual Damage 0.3.1 temporary manual review for NPCs without hit locations. These reviews use the GM's explicit DR and bypass layered protection and armour degradation without changing the actor.
 
@@ -184,7 +190,7 @@ GURPS is a trademark of Steve Jackson Games. This unofficial module is not affil
 
 Version 0.3.0 uses libWrapper for ADD integration. Enable libWrapper alongside this module. Use GGA Vitality Reserve 0.1.1 or later when combining them: armour review runs before VR routing, and the VR result retains the armour audit.
 
-## Optional shield tracking (0.4.0 prerelease)
+## Optional shield tracking
 
 Open **Armour Layers → Shields: damage and condition**, or call
 `game.modules.get('gurps-layered-armour').api.openShields()` with a selected token.
