@@ -1,0 +1,65 @@
+name: Shield prerelease
+
+on:
+  push:
+    branches:
+      - feature/shield-tracking
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shield-prerelease
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    uses: ./.github/workflows/checks.yml
+
+  prerelease:
+    needs: checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified package
+        uses: actions/download-artifact@v4
+        with:
+          name: foundry-package
+          path: dist/
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Publish test version only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          version=$(node -p 'require("./dist/module.json").version')
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+-rc[1-9][0-9]*$ ]]; then
+            echo "Only release candidates may be published from this branch."
+            exit 1
+          fi
+          release_tag="v$version"
+          if gh release view "$release_tag" >/dev/null 2>&1; then
+            echo "This test version already exists; no assets replaced."
+            exit 0
+          fi
+          cat > release-notes.txt <<'NOTES'
+          Optional shield tracking for GURPS 4e Basic Set and Shields Up! Detailed/Simple.
+          Includes visible condition trackers, manual shield-hit resolution, cover helper,
+          repair recording, chat visibility, undo, and residual damage review in GGA ADD.
+
+          Open Armour Layers, then Shields: damage and condition. Add a shield, review
+          its statistics, and enable tracking. Defence modifiers and manoeuvres remain
+          manual. See README for rules interpretations and live-test limitations.
+
+          Prerelease for Phil's live testing. The stable release is unchanged.
+          NOTES
+          gh release create "$release_tag" dist/* \
+            --target "$GITHUB_SHA" \
+            --title "GURPS Layered Armour $version" \
+            --notes-file release-notes.txt \
+            --prerelease --latest=false
