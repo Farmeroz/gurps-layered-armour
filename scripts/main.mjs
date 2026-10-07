@@ -1,3 +1,4 @@
+import { openShields } from './shield-editor.mjs';
 import * as log from './log.mjs';
 import { ID, canEdit, readProfile } from './core.mjs';
 import { createEditorClass } from './editor.mjs';
@@ -81,7 +82,7 @@ Hooks.once('ready', async () => {
   if (game.system.id !== 'gurps') return;
   const Base = globalThis.foundry?.appv1?.api?.Application ?? globalThis.Application;
   Editor = createEditorClass(Base);
-  game.modules.get(ID).api = Object.freeze({ open, command, getProfile: readProfile });
+  game.modules.get(ID).api = Object.freeze({ open, openShields, command, getProfile: readProfile });
   registerMenus(open);
   Hooks.on('closeApplication', (app) => {
     app._armourHideHelp?.();

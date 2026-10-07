@@ -1,3 +1,4 @@
+import { openShields } from './shield-editor.mjs';
 import {
   ID,
   clone,
@@ -276,6 +277,7 @@ export function createEditorClass(Base) {
         if (!button) return;
         ev.preventDefault();
         const action = button.dataset.action;
+        if (action === 'shields') return openShields(this.actor);
         if (this.importing) return;
         if (action === 'export') {
           try {

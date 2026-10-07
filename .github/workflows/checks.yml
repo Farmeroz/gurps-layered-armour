@@ -37,6 +37,11 @@ jobs:
           name: foundry-package
           path: dist/
           if-no-files-found: error
+      - name: Show formatting diff on failure
+        if: failure()
+        run: |
+          npm run format
+          git diff
       - name: Attach test diagnostics
         if: failure()
         uses: actions/upload-artifact@v4

@@ -1,4 +1,4 @@
-# GURPS Layered Armour 0.3.1
+# GURPS Layered Armour 0.4.0
 
 A separate Foundry VTT module with a player-facing **Armour Layers** window. It saves ordered armour on an actor and supplies layered DR to GGA's normal Apply Damage Dialog (ADD), including the ADD opened by GURPS Manual Damage.
 
@@ -12,7 +12,13 @@ For **Foundry VTT 14 and GURPS Game Aid (GGA) 0.18.x**. **libWrapper must be ins
 4. Open a damage ADD. Review the Armour Layers breakdown, then use **Apply Injury**. Merely opening the window does not damage armour or the actor.
 5. Inspect degrading armour in the actor's **Armour: layer name** Resource Trackers. Restore condition there when armour is repaired or replaced.
 
-### What is new in 0.3.1?
+### What is new in 0.4.0?
+
+Optional shield damage tracking supports GURPS 4e Basic Set and both Shields Up! modes, with visible condition trackers, repairs, manual correction, undo, and residual damage review in GGA ADD. Open **Armour Layers → Shields: damage and condition** to configure a shield. Tracking starts disabled; defence modifiers and manoeuvres remain manual.
+
+Phil accepted live testing of the shield release candidate on 7 October 2026. The automated suite passes all 103 tests, including shield rules, player controls, permissions, persistence, visibility, and undo.
+
+### Features introduced in 0.3.1
 
 Supports Manual Damage 0.3.1 temporary manual review for NPCs without hit locations. These reviews use the GM's explicit DR and bypass layered protection and armour degradation without changing the actor.
 
@@ -58,7 +64,7 @@ Export/import also works in **Adjust for this ADD only**. **Use for this ADD** c
 
 Manual Damage is optional. If you already use it, keep it enabled alongside this module. No character sheet files or system files need editing. For a manual installation, download the versioned ZIP from [GitHub Releases](https://github.com/Farmeroz/gurps-layered-armour/releases).
 
-**Moving from an rc test build:** install using the stable manifest above; rc manifests are pinned to their particular test release. Confirm **0.3.1** in Manage Modules, keep libWrapper enabled, and reload every connected client. Update Manual Damage to **0.3.1** if you use it. Existing actor armour data remains in place.
+**Moving from an rc test build:** install using the stable manifest above; rc manifests are pinned to their particular test release. Confirm **0.4.0** in Manage Modules, keep libWrapper enabled, and reload every connected client. Update Manual Damage to **0.3.1** if you use it. Existing actor armour data remains in place.
 
 ## Open the Armour Layers window
 
@@ -183,3 +189,84 @@ GURPS is a trademark of Steve Jackson Games. This unofficial module is not affil
 ## Vitality Reserve compatibility
 
 Version 0.3.0 uses libWrapper for ADD integration. Enable libWrapper alongside this module. Use GGA Vitality Reserve 0.1.1 or later when combining them: armour review runs before VR routing, and the VR result retains the armour audit.
+
+## Optional shield tracking
+
+Open **Armour Layers → Shields: damage and condition**, or call
+`game.modules.get('gurps-layered-armour').api.openShields()` with a selected token.
+Add a shield, review its statistics, select a rules mode, and enable tracking.
+The starting numbers are editable Basic Set medium-shield values, not equipment detection.
+Shields are saved separately from armour sets so changing clothes cannot reset shield damage.
+
+Each shield has its own visible GGA Resource Tracker: current HP for Basic Set/Detailed,
+or accumulated hits for Simple. Save configuration before applying damage. The shield panel
+shows effective DB, cover capability, and condition. Reflect those changes in defence modifiers
+manually; this release does not change imported skills, sheet DB, equipment, or manoeuvres.
+Unlinked tokens keep their own records. Reopen/reload after external tracker edits.
+
+### Rules modes
+
+- **Basic Set:** DR followed by object injury modifiers; HT checks at destruction thresholds.
+  At 0 HP or below, use the HT-before-use action before further use. Automatic destruction at
+  −5×maximum HP and complete destruction at −10×maximum HP. See GURPS 4e B379, B408, B483–484.
+- **Detailed:** Shields Up! pp. 15–16. HP thresholds without HT rolls. At 0 HP, DB and cover
+  are lost, but an originally DB 1+ shield can still Block. At −maximum HP it is destroyed;
+  at −5×maximum HP it is pulverised. Destruction records enchantment loss.
+- **Simple:** Shields Up! pp. 15–16. Apply Homogeneous damage modifiers, using full cutting
+  damage, then count full multiples of Cover DR. Three hits are harmless to function.
+  The fourth disables small shields or reduces larger shields to DB 1, and halves Cover DR.
+  The seventh destroys the shield and its enchantments. HP is not used in this mode.
+
+Cover DR is explicit, with a default of DR + floor(maximum HP / 4). Current HP does not
+recalculate it. A shield may have Cover DR without being usable as cover. Exceptional construction
+is configurable for detailed injury; Simple mode always uses its prescribed modifiers.
+
+### Applying a hit and overpenetration
+
+Select why the shield was struck, then enter basic damage, damage type, and armour divisor.
+The user confirms interception and any legal defence; attacks are not intercepted automatically.
+Basic Set permits the B484 overpenetration calculation. Shields Up! piercing/impaling attacks
+against presented cover may penetrate; slung shields use natural DR alone. Ordinary non-piercing
+blows do not automatically injure the wielder. If such a blow destroys the shield, the panel
+flags continuation for a GM ruling because the supplied text does not give a residual formula.
+
+Residual basic damage can be opened once in GGA ADD for review, where existing layered armour
+applies. Choose the correct hit location there. Basic Set uses 1d: 1–2 shield arm, 3–6 original
+target. Shield undo does not undo wearer injury applied separately in ADD. Knockback is manual.
+Ordinary burning injury is supported, but special flame and corrosion effects are not automated.
+
+The cover helper handles All-Out Defence (Cover), subsequent ranged attacks after Take Cover,
+area/spreading eligibility, slung cover, and optional Total Cover. It does not set posture or
+track duration. Confirm legal attack types and direction. Take Cover gives +1 to the initial
+Block; subsequent ranged attacks take half DB (rounded down) for the stated remainder of the
+turn, and the defender begins their next turn kneeling.
+
+### Explicit interpretations
+
+- Cover misses by 1 through DB intercept, following the dedicated cover section rather than
+  the inconsistent “less than” wording in the damage section.
+- Optional Massive Overpenetration applies doubled Cover DR at Block success margin ≥ DB,
+  following its example. Critical Block stops the attack. This is off by default and applies
+  only to the Shields Up! modes.
+- In Simple mode, all hit multiples from one attack use the Cover DR at the start of that
+  attack; halving applies to subsequent attacks. Fractional hits do not carry over.
+- Armour divisors reduce the selected barrier using normal effective-DR rounding. Simple mode
+  with zero effective Cover DR requires a manual hit ruling instead of dividing by zero.
+  This extension is an implementation interpretation, not a quoted Shields Up! rule.
+
+### Repairs, correction, visibility, and undo
+
+Record a completed repair with a note and the HP restored or hits removed. Detailed mode
+shows the in-town full-repair quote: 1d×10% of base cost for disabled shields, 100% for destroyed
+shields. Supply the rolled 1d result. The module does not spend money or roll repair skills.
+Lost enchantments stay lost. Pulverised shields and extraordinary artifacts require a GM
+ruling rather than ordinary repair. Manual correction remains available.
+
+Actions post escaped chat reports using the current Foundry roll visibility. Undo restores
+the preceding shield configuration and trackers, while retaining the original chat report.
+It refuses to overwrite a later external tracker edit. Concurrent actions in one client are
+blocked and stale windows are rejected; Foundry does not provide a cross-client compare-and-swap
+transaction, so avoid simultaneous edits to the same actor.
+
+Focused Ward and special corrosion/flame handling are excluded from this version.
+The shield damage text is referenced, not reproduced; players need their own rules sources.

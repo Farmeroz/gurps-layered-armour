@@ -14,5 +14,9 @@
   "scripts/tooltip-engine.mjs",
   "scripts/transfer.mjs",
   "styles/armour.css",
-  "templates/editor.hbs"
+  "templates/editor.hbs",
+  "scripts/shields.mjs",
+  "scripts/shield-store.mjs",
+  "scripts/shield-editor.mjs",
+  "templates/shields.hbs"
 ]
